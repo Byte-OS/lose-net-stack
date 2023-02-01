@@ -2,7 +2,6 @@
 
 mod net;
 mod addr;
-mod eth;
 mod consts;
 pub mod packets;
 pub mod results;
@@ -14,12 +13,12 @@ pub use addr::IPv4;
 pub use addr::MacAddress;
 use alloc::boxed::Box;
 use net::Arp;
+use net::Eth;
 use net::Ip;
 use net::UDP;
 use packets::arp::ArpPacket;
 use packets::arp::ArpType;
 use results::Packet;
-use core::marker::PhantomData;
 use core::mem::size_of;
 use core::slice;
 use consts::*;
@@ -40,14 +39,14 @@ impl LoseStack {
     }
 
     pub fn analysis(&self, data: &[u8]) -> Packet {
-        let eth_header = unsafe{(data.as_ptr() as usize as *const eth::Eth).as_ref()}.unwrap();
+        let eth_header = unsafe{(data.as_ptr() as usize as *const Eth).as_ref()}.unwrap();
         match eth_header.rtype.to_be() {
             ETH_RTYPE_IP => {
-                let ip_header = unsafe{((data.as_ptr() as usize + size_of::<eth::Eth>()) as *const Ip).as_ref()}.unwrap();
+                let ip_header = unsafe{((data.as_ptr() as usize + size_of::<Eth>()) as *const Ip).as_ref()}.unwrap();
 
                 match ip_header.pro {
                     IP_PROTOCAL_UDP => {
-                        let ptr = data.as_ptr() as usize + size_of::<eth::Eth>() + size_of::<Ip>();
+                        let ptr = data.as_ptr() as usize + size_of::<Eth>() + size_of::<Ip>();
                         let udp_header = unsafe{(ptr as *const UDP).as_ref()}.unwrap();
                         let len = udp_header.ulen.to_be() as usize - size_of::<UDP>();
                         let data = unsafe {
@@ -70,7 +69,7 @@ impl LoseStack {
                 }
             },
             ETH_RTYPE_ARP => {
-                let arp_header = unsafe{((data.as_ptr() as usize + size_of::<eth::Eth>()) as *const Arp).as_ref()}.unwrap();
+                let arp_header = unsafe{((data.as_ptr() as usize + size_of::<Eth>()) as *const Arp).as_ref()}.unwrap();
 
                 if arp_header.hlen != 6 || arp_header.plen != 4 {
                     // Unsupported now

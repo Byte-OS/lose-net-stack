@@ -1,6 +1,6 @@
-use core::fmt::{Display, Debug, Pointer};
+use core::fmt::{Display, Debug};
 
-use alloc::{string::String, format, fmt::format};
+use alloc::{string::String, format};
 
 #[derive(Clone, Copy)]
 pub struct IPv4(u32);

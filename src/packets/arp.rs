@@ -2,8 +2,7 @@ use core::mem::size_of;
 
 use alloc::vec::Vec;
 
-use crate::eth::Eth;
-use crate::net::Arp;
+use crate::net::{Arp, Eth};
 use crate::results::NetStackErrors;
 use crate::consts::{ARP_OP_REQUEST, ARP_OP_REPLY, ARP_HRD_ETHER, ETH_RTYPE_IP, ARP_ETHADDR_LEN, ETH_RTYPE_ARP, BROADCAST_MAC};
 use crate::MacAddress;

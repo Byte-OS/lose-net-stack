@@ -1,5 +1,3 @@
-use alloc::string::String;
-
 use crate::packets::{udp::UDPPacket, arp::ArpPacket};
 
 #[derive(Debug)]
