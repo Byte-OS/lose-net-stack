@@ -2,7 +2,7 @@
 
 > the net stack was written by a loser.
 
-## supported
+## just supported
 
 - arp
 - ip
