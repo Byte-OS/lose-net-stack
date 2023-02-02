@@ -38,10 +38,10 @@ impl UDPPacket {
         let mut data = vec![0u8; UDP_LEN + IP_LEN + ETH_LEN + self.data_len];
 
         let mut data_ptr_iter = UnsafeRefIter::new(&data);
-        let eth_header = unsafe{data_ptr_iter.next::<Eth>()}.unwrap();
-        let ip_header = unsafe{data_ptr_iter.next::<Ip>()}.unwrap();
-        let udp_header = unsafe{data_ptr_iter.next::<UDP>()};
-        let mut udp_data = unsafe {data_ptr_iter.get_curr_arr_mut()};
+        let eth_header = unsafe{data_ptr_iter.next_mut::<Eth>()}.unwrap();
+        let ip_header = unsafe{data_ptr_iter.next_mut::<Ip>()}.unwrap();
+        let udp_header = unsafe{data_ptr_iter.next_mut::<UDP>()}.unwrap();
+        let udp_data = unsafe {data_ptr_iter.get_curr_arr_mut()};
         // let eth_header = unsafe {data.as_mut_ptr().cast::<Eth>().as_mut()}.unwrap();
         // let ip_header = unsafe { data.as_mut_ptr().add(ETH_LEN).cast::<Ip>().as_mut() }.unwrap();
         // let udp_header = unsafe { data.as_mut_ptr().add(ETH_LEN + IP_LEN).cast::<UDP>().as_mut() }.unwrap();
