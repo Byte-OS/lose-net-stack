@@ -1,3 +1,5 @@
+use core::mem::size_of;
+
 #[derive(Debug)]
 #[repr(C)]
 pub struct Eth {
@@ -45,6 +47,11 @@ pub struct UDP {
     pub(crate) ulen: u16,  // length, including udp header, not including IP header
     pub(crate) sum: u16    // checksum
 }
+
+pub(crate) const ETH_LEN: usize = size_of::<Eth>();
+pub(crate) const ARP_LEN: usize = size_of::<Arp>();
+pub(crate) const IP_LEN:  usize = size_of::<Ip>();
+pub(crate) const UDP_LEN: usize = size_of::<UDP>();
 
 /*
 arp request and reply data

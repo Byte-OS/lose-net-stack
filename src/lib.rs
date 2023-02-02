@@ -5,6 +5,7 @@ mod addr;
 mod consts;
 pub mod packets;
 pub mod results;
+pub(crate) mod utils;
 
 #[macro_use]
 extern crate alloc;
@@ -19,8 +20,7 @@ use net::UDP;
 use packets::arp::ArpPacket;
 use packets::arp::ArpType;
 use results::Packet;
-use core::mem::size_of;
-use core::slice;
+use utils::UnsafeRefIter;
 use consts::*;
 
 
@@ -39,19 +39,16 @@ impl LoseStack {
     }
 
     pub fn analysis(&self, data: &[u8]) -> Packet {
-        let eth_header = unsafe{(data.as_ptr() as usize as *const Eth).as_ref()}.unwrap();
+        let mut data_ptr_iter = UnsafeRefIter::new(data);
+        let eth_header = unsafe{data_ptr_iter.next::<Eth>()}.unwrap();
         match eth_header.rtype.to_be() {
             ETH_RTYPE_IP => {
-                let ip_header = unsafe{((data.as_ptr() as usize + size_of::<Eth>()) as *const Ip).as_ref()}.unwrap();
-
+                let ip_header = unsafe{data_ptr_iter.next::<Ip>()}.unwrap();
                 match ip_header.pro {
                     IP_PROTOCAL_UDP => {
-                        let ptr = data.as_ptr() as usize + size_of::<Eth>() + size_of::<Ip>();
-                        let udp_header = unsafe{(ptr as *const UDP).as_ref()}.unwrap();
-                        let len = udp_header.ulen.to_be() as usize - size_of::<UDP>();
-                        let data = unsafe {
-                            slice::from_raw_parts((ptr + size_of::<UDP>()) as *const u8, len)
-                        };
+                        let udp_header = unsafe{data_ptr_iter.next::<UDP>()}.unwrap();
+                        let data = unsafe{data_ptr_iter.get_curr_arr()};
+                        let len = data.len();
                         Packet::UDP(packets::udp::UDPPacket { 
                             source_ip: IPv4::from_u32(ip_header.src.to_be()), 
                             source_mac: MacAddress::new(eth_header.shost), 
@@ -69,8 +66,7 @@ impl LoseStack {
                 }
             },
             ETH_RTYPE_ARP => {
-                let arp_header = unsafe{((data.as_ptr() as usize + size_of::<Eth>()) as *const Arp).as_ref()}.unwrap();
-
+                let arp_header = unsafe{data_ptr_iter.next::<Arp>()}.unwrap();
                 if arp_header.hlen != 6 || arp_header.plen != 4 {
                     // Unsupported now
                     Packet::Todo("can't support the case that not ipv4")

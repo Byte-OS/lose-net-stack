@@ -2,11 +2,12 @@ use core::mem::size_of;
 
 use alloc::vec::Vec;
 
-use crate::net::{Arp, Eth};
+use crate::net::{Arp, Eth, ARP_LEN, ETH_LEN};
 use crate::results::NetStackErrors;
 use crate::consts::{ARP_OP_REQUEST, ARP_OP_REPLY, ARP_HRD_ETHER, ETH_RTYPE_IP, ARP_ETHADDR_LEN, ETH_RTYPE_ARP, BROADCAST_MAC};
 use crate::MacAddress;
 use crate::IPv4;
+use crate::utils::UnsafeRefIter;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ArpType {
@@ -48,14 +49,18 @@ impl ArpPacket {
     }
 
     pub fn build_data(&self) -> Vec<u8> {
-        let data = vec![0u8; size_of::<Arp>() + size_of::<Eth>()];
+        let data = vec![0u8; ARP_LEN + ETH_LEN];
 
-        let mut eth_header = unsafe{(data.as_ptr() as usize as *mut Eth).as_mut()}.unwrap();
+        let mut data_ptr_iter = UnsafeRefIter::new(&data);
+
+        // let mut eth_header = unsafe{(data.as_ptr() as usize as *mut Eth).as_mut()}.unwrap();
+        let mut eth_header = unsafe{ data_ptr_iter.next_mut::<Eth>() }.unwrap();
         eth_header.rtype = ETH_RTYPE_ARP.to_be();
         eth_header.dhost = BROADCAST_MAC;
         eth_header.shost = self.sender_mac.to_bytes();
 
-        let mut arp_header = unsafe{((data.as_ptr() as usize + size_of::<Eth>()) as *mut Arp).as_mut()}.unwrap();
+        // let mut arp_header = unsafe{((data.as_ptr() as usize + size_of::<Eth>()) as *mut Arp).as_mut()}.unwrap();
+        let mut arp_header = unsafe { data_ptr_iter.next_mut::<Arp>() }.unwrap();
         arp_header.httype = ARP_HRD_ETHER.to_be();
         arp_header.pttype = ETH_RTYPE_IP.to_be();
         arp_header.hlen = ARP_ETHADDR_LEN as u8;    // mac address len
