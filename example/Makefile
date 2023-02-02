@@ -25,4 +25,7 @@ run: all
 ping: 
 	python3 ping.py $(FWDPORT)
 
-.PHONY: all run ping
+server:
+	python3 server.py $(FWDPORT)
+
+.PHONY: all run ping server
