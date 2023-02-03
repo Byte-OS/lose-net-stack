@@ -15,13 +15,13 @@ pub struct UDPPacket {
     pub dest_mac: MacAddress,
     pub dest_port: u16,
     pub data_len: usize,
-    pub data: Box<&'static [u8]>
+    pub data: &'static [u8]
 }
 
 impl UDPPacket {
     pub fn new(source_ip: IPv4, source_mac: MacAddress, source_port: u16, 
         dest_ip: IPv4, dest_mac: MacAddress, dest_port: u16, 
-        data_len: usize, data: Box<&'static [u8]>) -> Self {
+        data_len: usize, data: &'static [u8]) -> Self {
         Self {
             source_ip,
             source_mac,
@@ -79,7 +79,7 @@ impl UDPPacket {
             self.source_mac, 
             self.source_port, 
             data.len(), 
-            Box::new(data)
+            data
         )
     }
 }
