@@ -5,6 +5,6 @@
 ## just supported
 
 - arp
-- ip
-- udp(receive and transmit, low configurable)
+- ip (low configurable)
+- udp(receive and transmit)
 
