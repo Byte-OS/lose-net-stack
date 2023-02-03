@@ -35,7 +35,7 @@ pub struct Ip {
     pub(crate) pro: u8,    // protocol， ICMP(1)、IGMP(2)、TCP(6)、UDP(17)
     pub(crate) sum: u16,   // checksum,
     pub(crate) src: u32,   // souce ip
-    pub(crate) dst: u32 // destination ip
+    pub(crate) dst: u32    // destination ip
 }
 
 #[allow(dead_code)]

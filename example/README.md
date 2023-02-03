@@ -14,14 +14,16 @@
 
 ## 运行
 
-打开一个中断执行 ping 程序 (请确保安装有 python3)
+> tips: 请按照顺序执行，即： 先运行example，然后执行 ping 程序。
 
-```
-make ping
-```
-
-然后在另一个中断中执行程序即可
+打开一个终端，运行example
 
 ```
 make run
+```
+
+再打开一个终端执行 ping 程序 (请确保安装有 python3)
+
+```
+make ping
 ```

@@ -4,7 +4,7 @@ use crate::consts::{ETH_RTYPE_IP, IP_PROTOCAL_UDP};
 use crate::net::{UDP, Eth, Ip, UDP_LEN, IP_LEN, ETH_LEN};
 use crate::IPv4;
 use crate::MacAddress;
-use crate::utils::UnsafeRefIter;
+use crate::utils::{UnsafeRefIter, check_sum};
 
 #[derive(Debug, Clone)]
 pub struct UDPPacket {
@@ -35,16 +35,15 @@ impl UDPPacket {
     }
 
     pub fn build_data(&self) -> Vec<u8> {
-        let mut data = vec![0u8; UDP_LEN + IP_LEN + ETH_LEN + self.data_len];
+        let data = vec![0u8; UDP_LEN + IP_LEN + ETH_LEN + self.data_len];
 
+        // convert data ptr to the ref needed.
         let mut data_ptr_iter = UnsafeRefIter::new(&data);
         let eth_header = unsafe{data_ptr_iter.next_mut::<Eth>()}.unwrap();
         let ip_header = unsafe{data_ptr_iter.next_mut::<Ip>()}.unwrap();
         let udp_header = unsafe{data_ptr_iter.next_mut::<UDP>()}.unwrap();
         let udp_data = unsafe {data_ptr_iter.get_curr_arr_mut()};
-        // let eth_header = unsafe {data.as_mut_ptr().cast::<Eth>().as_mut()}.unwrap();
-        // let ip_header = unsafe { data.as_mut_ptr().add(ETH_LEN).cast::<Ip>().as_mut() }.unwrap();
-        // let udp_header = unsafe { data.as_mut_ptr().add(ETH_LEN + IP_LEN).cast::<UDP>().as_mut() }.unwrap();
+
 
         eth_header.rtype = ETH_RTYPE_IP.to_be();
         eth_header.shost = self.source_mac.to_bytes();
@@ -54,20 +53,33 @@ impl UDPPacket {
         ip_header.off = 0;
         ip_header.src = self.source_ip.to_u32().to_be();
         ip_header.dst = self.dest_ip.to_u32().to_be();
-        ip_header.tos = todo!(); // type of service
-        ip_header.id  = todo!(); // packet identified
-        ip_header.sum = todo!(); // checksum
-        ip_header.ttl = todo!(); // packet ttl
-        ip_header.vhl = todo!(); // version << 4 | header length >> 2
-        ip_header.len = todo!(); // toal len
+        ip_header.tos = 0; // type of service, use 0 as default
+        ip_header.id  = 0; // packet identified, use 0 as default
+        ip_header.ttl = 100; // packet ttl, use 32 as default
+        ip_header.vhl = (4 << 4) | (20 >> 2); // version << 4 | header length >> 2
+        ip_header.len = ((self.data_len + UDP_LEN + IP_LEN) as u16).to_be(); // toal len
+        ip_header.sum = check_sum(ip_header as *mut Ip as *mut u8, IP_LEN as _); // checksum
 
-        udp_header.sport = self.source_port;
-        udp_header.dport = self.dest_port;
-        udp_header.sum   = todo!(); // udp checksum
-        udp_header.ulen  = (self.data_len + UDP_LEN) as _;
+        udp_header.sport = self.source_port.to_be();
+        udp_header.dport = self.dest_port.to_be();
+        udp_header.sum   = 0; // udp checksum   zero means no checksum is provided.
+        udp_header.ulen  = ((self.data_len + UDP_LEN) as u16).to_be();
 
         udp_data.copy_from_slice(&self.data);
 
         data
+    }
+
+    pub fn reply(&self, data: &'static [u8]) -> Self {
+        Self::new(
+            self.dest_ip, 
+            self.dest_mac, 
+            self.dest_port, 
+            self.source_ip, 
+            self.source_mac, 
+            self.source_port, 
+            data.len(), 
+            Box::new(data)
+        )
     }
 }

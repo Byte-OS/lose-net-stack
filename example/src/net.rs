@@ -1,8 +1,8 @@
 
 use core::{ptr::NonNull, str::from_utf8_mut};
 
-use alloc::{vec, string::String};
-use lose_net_stack::{LoseStack, IPv4, MacAddress, results::Packet};
+use alloc::{vec, string::String, boxed::Box};
+use lose_net_stack::{LoseStack, IPv4, MacAddress, results::Packet, packets::udp::UDPPacket};
 use opensbi_rt::{print, println};
 use virtio_drivers::{VirtIONet, VirtIOHeader, MmioTransport};
 
@@ -38,11 +38,20 @@ pub fn init() {
                     udp_packet.dest_ip, udp_packet.dest_port, udp_packet.dest_mac, udp_packet.data_len);
                 info!("data: {}", String::from_utf8_lossy(udp_packet.data.as_ref()));
                 hexdump(udp_packet.data.as_ref());
+
+                if String::from_utf8_lossy(udp_packet.data.as_ref()) == "this is a ping!" {
+                    let data = r"reply".as_bytes();
+                    let udp_reply_packet = udp_packet.reply(data);
+                    net.send(&udp_reply_packet.build_data());
+                    break;
+                }
+
+                // let response_udp = 
             }
             _ => {}
         }
     }
-    info!("create driver");
+    info!("net stack example test successed!");
 }
 
 pub fn hexdump(data: &[u8]) {
@@ -76,3 +85,12 @@ pub fn hexdump(data: &[u8]) {
     }
     println!("{:-^1$}", " hexdump end ", PRELAND_WIDTH);
 }
+
+/* UDP SEND HEXDUMP
+------------------------------ hexdump -------------------------------
+ff ff ff ff ff ff 52 54 00 12 34 56 08 00 45 00       ......RT..4V..E.
+28 00 00 00 00 00 20 11 61 ff 0a 00 02 0f 0a 00       (..... .a.......
+02 02 38 18 39 18 14 00 5e ff 48 65 6c 6c 6f 20       ..8.9...^.Hello 
+57 6f 72 6c 64 21                                     World!                              
+---------------------------- hexdump end -----------------------------
+*/

@@ -5,6 +5,7 @@ KERNEL_FILE := target/$(TARGET)/release/example
 KERNEL_BIN	:= kernel-qemu
 DEBUG_FILE  ?= $(KERNEL_FILE)
 FWDPORT 	:= 6200
+SERVER_PORT := 6201
 
 OBJDUMP     := rust-objdump --arch-name=riscv64
 OBJCOPY     := rust-objcopy --binary-architecture=riscv64
@@ -26,6 +27,6 @@ ping:
 	python3 ping.py $(FWDPORT)
 
 server:
-	python3 server.py $(FWDPORT)
+	python3 server.py $(SERVER_PORT)
 
 .PHONY: all run ping server
