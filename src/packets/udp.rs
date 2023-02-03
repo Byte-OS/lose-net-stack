@@ -1,6 +1,6 @@
-use alloc::{boxed::Box, vec::Vec};
+use alloc::vec::Vec;
 
-use crate::consts::{ETH_RTYPE_IP, IP_PROTOCAL_UDP};
+use crate::consts::{ETH_RTYPE_IP, IP_PROTOCAL_UDP, IP_HEADER_VHL};
 use crate::net::{UDP, Eth, Ip, UDP_LEN, IP_LEN, ETH_LEN};
 use crate::IPv4;
 use crate::MacAddress;
@@ -56,7 +56,7 @@ impl UDPPacket {
         ip_header.tos = 0; // type of service, use 0 as default
         ip_header.id  = 0; // packet identified, use 0 as default
         ip_header.ttl = 100; // packet ttl, use 32 as default
-        ip_header.vhl = (4 << 4) | (20 >> 2); // version << 4 | header length >> 2
+        ip_header.vhl = IP_HEADER_VHL; // version << 4 | header length >> 2
         ip_header.len = ((self.data_len + UDP_LEN + IP_LEN) as u16).to_be(); // toal len
         ip_header.sum = check_sum(ip_header as *mut Ip as *mut u8, IP_LEN as _); // checksum
 

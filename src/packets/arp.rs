@@ -1,5 +1,3 @@
-use core::mem::size_of;
-
 use alloc::vec::Vec;
 
 use crate::net::{Arp, Eth, ARP_LEN, ETH_LEN};
