@@ -3,7 +3,7 @@ use crate::packets::{udp::UDPPacket, arp::ArpPacket};
 #[derive(Debug)]
 pub enum Packet {
     ARP(ArpPacket),
-    UDP(UDPPacket),
+    UDP(UDPPacket<'static>),
     TCP(),
     ICMP(),
     IGMP(),

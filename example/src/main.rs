@@ -13,6 +13,7 @@ extern crate opensbi_rt;
 extern crate log;
 
 mod net;
+mod dns;
 mod virtio_impls;
 
 /// rust 入口函数

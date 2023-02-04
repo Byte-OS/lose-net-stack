@@ -1,8 +1,8 @@
 
-use core::{ptr::NonNull, str::from_utf8_mut};
+use core::ptr::NonNull;
 
-use alloc::{vec, string::String, boxed::Box};
-use lose_net_stack::{LoseStack, IPv4, MacAddress, results::Packet, packets::udp::UDPPacket};
+use alloc::{vec, string::String};
+use lose_net_stack::{LoseStack, IPv4, MacAddress, results::Packet};
 use opensbi_rt::{print, println};
 use virtio_drivers::{VirtIONet, VirtIOHeader, MmioTransport};
 
@@ -42,7 +42,7 @@ pub fn init() {
                 if String::from_utf8_lossy(udp_packet.data.as_ref()) == "this is a ping!" {
                     let data = r"reply".as_bytes();
                     let udp_reply_packet = udp_packet.reply(data);
-                    net.send(&udp_reply_packet.build_data());
+                    net.send(&udp_reply_packet.build_data()).expect("can't send using net dev");
                     break;
                 }
 
