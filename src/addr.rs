@@ -2,7 +2,7 @@ use core::fmt::{Display, Debug};
 
 use alloc::{string::String, format};
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct IPv4(u32);
 
 impl IPv4 {
@@ -34,7 +34,7 @@ impl Debug for IPv4 {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct MacAddress([u8; 6]);
 
 impl MacAddress {
