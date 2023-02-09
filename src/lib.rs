@@ -16,6 +16,8 @@ use net::Arp;
 use net::Eth;
 use net::Ip;
 use net::UDP;
+use net::UDP_LEN;
+use net::IP_LEN;
 use packets::arp::ArpPacket;
 use packets::arp::ArpType;
 use results::Packet;
@@ -40,7 +42,7 @@ impl LoseStack {
     fn analysis_udp(&self, mut data_ptr_iter: UnsafeRefIter, ip_header: &Ip, eth_header: &Eth) -> Packet {
         let udp_header = unsafe{data_ptr_iter.next::<UDP>()}.unwrap();
         let data = unsafe{data_ptr_iter.get_curr_arr()};
-        let data_len = data.len();
+        let data_len = ip_header.len.to_be() as usize - UDP_LEN - IP_LEN;
 
         Packet::UDP(packets::udp::UDPPacket { 
             source_ip: IPv4::from_u32(ip_header.src.to_be()), 
@@ -50,7 +52,7 @@ impl LoseStack {
             dest_mac: MacAddress::new(eth_header.dhost), 
             dest_port: udp_header.dport.to_be(), 
             data_len, 
-            data
+            data: &data[..data_len]
         })
     }
 
