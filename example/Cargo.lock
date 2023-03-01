@@ -71,6 +71,10 @@ dependencies = [
 [[package]]
 name = "lose-net-stack"
 version = "0.1.0"
+dependencies = [
+ "bitflags",
+ "log",
+]
 
 [[package]]
 name = "opensbi-rt"

@@ -48,8 +48,8 @@ impl UnsafeRefIter {
 }
 
 // copy from xv6-rust
-pub fn check_sum(addr:*mut u8, len:u32) -> u16 {
-    let mut sum:u32 = 0;
+pub fn check_sum(addr:*mut u8, len:u32, sum: u32) -> u16 {
+    let mut sum:u32 = sum;
     let mut nleft = len;
     let mut w = addr as *const u16;
     

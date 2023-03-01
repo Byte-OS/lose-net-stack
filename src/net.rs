@@ -1,5 +1,6 @@
 use core::mem::size_of;
 
+
 #[derive(Debug)]
 #[repr(C)]
 pub struct Eth {
@@ -48,10 +49,50 @@ pub struct UDP {
     pub(crate) sum: u16    // checksum
 }
 
+bitflags! {
+    // #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct TcpFlags: u8 {
+        const NONE = 0;
+        const F = 0b00000001;
+        const S = 0b00000010;
+        const R = 0b00000100;
+        const P = 0b00001000;
+        const A = 0b00010000;
+        const U = 0b00100000;
+    }
+}
+
+#[allow(dead_code)]
+#[repr(packed)]
+#[derive(Debug, Clone, Copy)]
+pub struct TCP {
+    pub(crate) sport: u16, // souce port
+    pub(crate) dport: u16, // destination port
+    pub(crate) seq: u32, // sequence number
+    pub(crate) ack: u32, // acknowledgement number
+    pub(crate) offset: u8, // offset, first 4 bytes are tcp header length
+    pub(crate) flags: TcpFlags, // flags, last 6 are flags(U, A, P, R, S, F)
+    pub(crate) win: u16,    // window size
+    pub(crate) sum: u16,    // checksum
+    pub(crate) urg: u16,    // urgent pointer
+}
+
+#[allow(dead_code)]
+#[repr(packed)]
+#[derive(Debug, Clone, Copy)]
+pub struct ICMP {
+    pub(crate) type_: u8,
+    pub(crate) code: u8,
+    pub(crate) checksum: u16,
+    pub(crate) id: u16,
+    pub(crate) seq: u16,
+}
+
 pub(crate) const ETH_LEN: usize = size_of::<Eth>();
 pub(crate) const ARP_LEN: usize = size_of::<Arp>();
 pub(crate) const IP_LEN:  usize = size_of::<Ip>();
 pub(crate) const UDP_LEN: usize = size_of::<UDP>();
+pub(crate) const TCP_LEN: usize = size_of::<TCP>();
 
 /*
 arp request and reply data

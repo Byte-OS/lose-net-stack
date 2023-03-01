@@ -5,6 +5,7 @@ KERNEL_FILE := target/$(TARGET)/release/example
 KERNEL_BIN	:= kernel-qemu
 DEBUG_FILE  ?= $(KERNEL_FILE)
 FWDPORT 	:= 6200
+FWDPORTTCP  := 6202
 SERVER_PORT := 6201
 
 OBJDUMP     := rust-objdump --arch-name=riscv64
@@ -20,7 +21,7 @@ run: all
 		-machine virt \
 		-nographic \
 		-kernel $(KERNEL_BIN) \
-		-netdev user,id=net0,hostfwd=udp::$(FWDPORT)-:2000 -object filter-dump,id=net0,netdev=net0,file=packets.pcap \
+		-netdev user,id=net0,hostfwd=udp::$(FWDPORT)-:2000,hostfwd=tcp::$(FWDPORTTCP)-:$(FWDPORTTCP) -object filter-dump,id=net0,netdev=net0,file=packets.pcap \
 		-device virtio-net-device,netdev=net0
 
 ping: 

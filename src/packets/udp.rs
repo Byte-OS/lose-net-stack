@@ -58,7 +58,7 @@ impl<'a> UDPPacket<'a> {
         ip_header.ttl = 100; // packet ttl, use 32 as default
         ip_header.vhl = IP_HEADER_VHL; // version << 4 | header length >> 2
         ip_header.len = ((self.data_len + UDP_LEN + IP_LEN) as u16).to_be(); // toal len
-        ip_header.sum = check_sum(ip_header as *mut Ip as *mut u8, IP_LEN as _); // checksum
+        ip_header.sum = check_sum(ip_header as *mut Ip as *mut u8, IP_LEN as _, 0); // checksum
 
         udp_header.sport = self.source_port.to_be();
         udp_header.dport = self.dest_port.to_be();

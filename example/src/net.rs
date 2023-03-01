@@ -2,7 +2,8 @@
 use core::ptr::NonNull;
 
 use alloc::{vec, string::String};
-use lose_net_stack::{LoseStack, IPv4, MacAddress, results::Packet};
+use alloc::vec::Vec;
+use lose_net_stack::{LoseStack, IPv4, MacAddress, results::Packet, TcpFlags};
 use opensbi_rt::{print, println};
 use virtio_drivers::{VirtIONet, VirtIOHeader, MmioTransport};
 
@@ -45,8 +46,24 @@ pub fn init() {
                     net.send(&udp_reply_packet.build_data()).expect("can't send using net dev");
                     break;
                 }
+            }
+            Packet::TCP(tcp_packet) => {
+                info!("{}:{}(MAC:{}) -> {}:{}(MAC:{})  len:{}", tcp_packet.source_ip, tcp_packet.source_port, tcp_packet.source_mac, 
+                    tcp_packet.dest_ip, tcp_packet.dest_port, tcp_packet.dest_mac, tcp_packet.data_len);
+                info!("data: {}", String::from_utf8_lossy(tcp_packet.data.as_ref()));
 
-                // let response_udp = 
+                hexdump(tcp_packet.data.as_ref());
+
+                if tcp_packet.flags == TcpFlags::S {
+                    let temp_data = Vec::new();
+                    let mut reply_packet = tcp_packet.reply(&temp_data);
+                    reply_packet.flags = TcpFlags::S | TcpFlags::A;
+                    let reply_data = &reply_packet.build_data();
+                    hexdump(&reply_data);
+                    info!("{}:{}(MAC:{}) -> {}:{}(MAC:{})  len:{}", reply_packet.source_ip, reply_packet.source_port, reply_packet.source_mac, 
+                    reply_packet.dest_ip, reply_packet.dest_port, reply_packet.dest_mac, reply_packet.data_len);
+                    net.send(&reply_data);
+                }
             }
             _ => {}
         }
@@ -54,6 +71,7 @@ pub fn init() {
     info!("net stack example test successed!");
 }
 
+#[no_mangle]
 pub fn hexdump(data: &[u8]) {
     const PRELAND_WIDTH: usize = 70;
     println!("{:-^1$}", " hexdump ", PRELAND_WIDTH);
