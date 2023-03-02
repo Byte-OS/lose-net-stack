@@ -6,5 +6,5 @@
 
 - arp
 - ip (low configurable)
-- udp(receive and transmit)
-
+- udp (receive and transmit)
+- tcp (receive and transmit)
