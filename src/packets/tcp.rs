@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use crate::consts::{ETH_RTYPE_IP, IP_HEADER_VHL, IP_PROTOCAL_TCP};
+use crate::consts::{ETH_RTYPE_IP, IP_HEADER_VHL, IP_PROTOCAL_TCP, TCP_EMPTY_DATA};
 use crate::utils::{UnsafeRefIter, check_sum};
 use crate::IPv4;
 use crate::MacAddress;
@@ -60,19 +60,38 @@ impl<'a> TCPPacket<'a>  {
         tcp_header.win = 65535_u16.to_be();
         tcp_header.urg = 0;
         tcp_header.sum = 0;
+        tcp_data.copy_from_slice(&self.data);
         
         let mut sum = self.source_ip.to_u32().to_be();
         sum += self.dest_ip.to_u32().to_be();
         sum += (IP_PROTOCAL_TCP as u16).to_be() as u32;
         sum += ((self.data_len + TCP_LEN) as u16).to_be() as u32;
-        tcp_header.sum = check_sum(tcp_header as *mut _ as *mut u8, TCP_LEN as _, sum); // tcp checksum. zero means no checksum is provided.
-
-        tcp_data.copy_from_slice(&self.data);
+        tcp_header.sum = check_sum(tcp_header as *mut _ as *mut u8, (TCP_LEN + self.data_len) as _, sum); // tcp checksum. zero means no checksum is provided.
 
         data
     }
 
     pub fn reply(&self, data: &'a[u8]) -> Self {
+        let mut ack_packet = self.ack();
+        ack_packet.data_len += data.len();
+        ack_packet.data = data;
+        ack_packet
+    }
+
+    pub fn ack(&self) -> Self {
+        let mut ack = self.seq + self.data_len as u32;
+
+        // according to rfc793, the SYN consume one byte in the stream.
+        if self.flags.contains(TcpFlags::S) || self.flags.contains(TcpFlags::F) {
+            ack += 1;
+        }
+
+        let mut flags = self.flags;
+        
+        if flags.contains(TcpFlags::R) {
+            flags.remove(TcpFlags::R);
+        }
+
         Self {
             source_ip: self.dest_ip,
             source_mac: self.dest_mac,
@@ -80,13 +99,13 @@ impl<'a> TCPPacket<'a>  {
             dest_ip: self.source_ip,
             dest_mac: self.source_mac,
             dest_port: self.source_port,
-            data_len: data.len(),
+            data_len: 0,
             seq: self.ack,
-            ack: self.seq + 1,
-            flags: self.flags,
+            ack,
+            flags,
             win: self.win,
             urg: self.urg,
-            data
+            data: TCP_EMPTY_DATA
         }
     }
 }

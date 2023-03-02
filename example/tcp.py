@@ -10,6 +10,8 @@ buf = "this is a ping!".encode('utf-8')
 while True:
 	sock.connect(addr)
 	sock.send(buf)
+	buf, raddr = sock.recvfrom(4096)
+	print(buf.decode("utf-8"))
 	break
 	# sock.sendto(buf, ("127.0.0.1", int(sys.argv[1])))
 	# time.sleep(1)

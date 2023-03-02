@@ -17,7 +17,6 @@ extern crate bitflags;
 
 pub use addr::IPv4;
 pub use addr::MacAddress;
-use net::ICMP;
 pub use net::TcpFlags;
 use net::Arp;
 use net::Eth;
@@ -33,7 +32,6 @@ use utils::UnsafeRefIter;
 use consts::*;
 
 use crate::net::TCP_LEN;
-use crate::utils::check_sum;
 
 pub struct LoseStack {
     pub ip:  IPv4,
@@ -88,8 +86,8 @@ impl LoseStack {
         })
     }
 
-    fn analysis_icmp(&self, mut data_ptr_iter: UnsafeRefIter, ip_header: &Ip, _eth_header: &Eth) -> Packet {
-        let data = unsafe{data_ptr_iter.get_curr_arr()};
+    fn analysis_icmp(&self, data_ptr_iter: UnsafeRefIter, _ip_header: &Ip, _eth_header: &Eth) -> Packet {
+        let _data = unsafe{data_ptr_iter.get_curr_arr()};
 
         Packet::ICMP()
     }

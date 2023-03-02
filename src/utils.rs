@@ -47,28 +47,30 @@ impl UnsafeRefIter {
     }
 }
 
-// copy from xv6-rust
+// check sum function
 pub fn check_sum(addr:*mut u8, len:u32, sum: u32) -> u16 {
     let mut sum:u32 = sum;
     let mut nleft = len;
     let mut w = addr as *const u16;
+
+    if sum > 0xffff {
+        sum = (sum & 0xFFFF) + (sum >> 16);
+        sum = sum + (sum >> 16);
+    }
     
-     // Our algorithm is simple, using a 32 bit accmulator (sum), we add
-     // sequential 16 bit words to it, and at the end, fold back all the 
-     // carry bits from the top 16 bits into the lower 16 bits. 
-     while nleft > 0 {
+     while nleft > 1 {
         sum += unsafe{ *w as u32 };
         w = (w as usize + 2) as *mut u16;
         nleft -= 2;
      }
 
-     // mop up an odd byte, if necessary
-     // emmm, I think it is unnecessary
+     if nleft == 1 {
+        sum += unsafe { *(w as *const u8) as u32};
+     }
 
-     // add back carry outs from top 16 bits to low bits
+
      sum = (sum & 0xFFFF) + (sum >> 16);
      sum = sum + (sum >> 16);
-     // guaranted now that lower 16 bits of sum are correct
 
      let answer:u16 = !sum as u16;
 
