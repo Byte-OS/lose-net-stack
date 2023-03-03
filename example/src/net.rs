@@ -156,7 +156,7 @@ pub fn receive_tcp(net: &mut VirtIONet<HalImpl, MmioTransport>, tcp_packet: &TCP
 HTTP/1.1 200 OK\r\n\
 Content-Type: text/html\r\n\
 Content-Length: {}\r\n\
-Connecion: close\r\n\
+Connecion: keep-alive\r\n\
 \r\n\
 {}",
         CONTENT.len(),
