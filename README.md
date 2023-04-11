@@ -1,6 +1,6 @@
 # lose-net-stack
 
-> the net stack was written by a loser.
+> A network stack written by rust language.
 
 ## just supported
 
