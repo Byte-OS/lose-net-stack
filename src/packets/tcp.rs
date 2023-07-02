@@ -108,4 +108,22 @@ impl<'a> TCPPacket<'a>  {
             data: TCP_EMPTY_DATA
         }
     }
+
+    pub fn close(&self) -> Self {
+        Self {
+            source_ip: self.dest_ip,
+            source_mac: self.dest_mac,
+            source_port: self.dest_port,
+            dest_ip: self.source_ip,
+            dest_mac: self.source_mac,
+            dest_port: self.source_port,
+            data_len: 0,
+            seq: self.ack,
+            ack: self.seq + 1,
+            flags: TcpFlags::F,
+            win: self.win,
+            urg: self.urg,
+            data: TCP_EMPTY_DATA
+        }
+    }
 }

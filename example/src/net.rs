@@ -76,14 +76,15 @@ pub fn init() {
                     net.send(&reply_data).expect("can't send to net");
                 } else if tcp_packet.flags.contains(TcpFlags::F) {
                     // tcp disconnected
-                    let reply_packet = tcp_packet.ack();
+                    let mut reply_packet = tcp_packet.ack();
+                    reply_packet.flags.remove(TcpFlags::F);
                     net.send(&reply_packet.build_data())
                         .expect("can't send to net");
 
-                    let mut end_packet = reply_packet.ack();
-                    end_packet.flags |= TcpFlags::F;
-                    net.send(&end_packet.build_data())
-                        .expect("can't send to net");
+                    // let mut end_packet = reply_packet.ack();
+                    // end_packet.flags |= TcpFlags::F;
+                    // net.send(&end_packet.build_data())
+                    //     .expect("can't send to net");
                 } else {
                     info!(
                         "{}:{}(MAC:{}) -> {}:{}(MAC:{})  len:{}",
@@ -182,8 +183,26 @@ Connecion: keep-alive\r\n\
         }
         let reply_packet = tcp_packet.reply(header.as_bytes());
         net.send(&reply_packet.build_data()).expect("can't send to");
+        let mut close_packet = tcp_packet.ack();
+        close_packet.seq += reply_packet.data.len() as u32;
+        close_packet.flags = TcpFlags::F;
+        net.send(&close_packet.build_data()).expect("can't send close packet");
+        
     } else {
-        let reply_packet = tcp_packet.ack();
-        net.send(&reply_packet.build_data()).expect("can't send reply packet");
+        if tcp_packet.data == b"this is a ping!" {
+            let mut reply_packet = tcp_packet.ack();
+            reply_packet.flags = TcpFlags::F | TcpFlags::A;
+            net.send(&reply_packet.build_data()).expect("can't send reply packet");
+        } else {
+            debug!("tcp_packet flags:{:?}  data_len: {}", tcp_packet.flags, tcp_packet.data_len);
+            if tcp_packet.flags.contains(TcpFlags::A) && tcp_packet.data_len == 0 {
+                return;
+            }
+            let mut reply_packet = tcp_packet.ack();
+            if reply_packet.flags.contains(TcpFlags::F) {
+                reply_packet.flags = TcpFlags::A;
+            }
+            net.send(&reply_packet.build_data()).expect("can't send reply packet");
+        }
     }
 }

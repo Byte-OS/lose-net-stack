@@ -1,7 +1,7 @@
 .PHONY: all run clean run-nvme
 
 TARGET      := riscv64imac-unknown-none-elf
-KERNEL_FILE := target/$(TARGET)/release/example
+KERNEL_FILE := ../target/$(TARGET)/release/example
 KERNEL_BIN	:= kernel-qemu
 DEBUG_FILE  ?= $(KERNEL_FILE)
 FWDPORT 	:= 6200
