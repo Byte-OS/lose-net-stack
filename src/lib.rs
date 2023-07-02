@@ -2,6 +2,7 @@
 #![feature(ip_in_core)]
 
 mod addr;
+pub mod arp_table;
 pub mod connection;
 mod consts;
 mod net;

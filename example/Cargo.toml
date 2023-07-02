@@ -12,3 +12,4 @@ opensbi-rt = { git = "https://github.com/rcore-os/riscv-sbi-rt", branch = "old"}
 lazy_static = { version = "1.4", features = ["spin_no_std"] }
 log = "0.4"
 lose-net-stack = { path = "../", features = ["log"]}
+spin = "0.9.8"
