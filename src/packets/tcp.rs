@@ -1,10 +1,10 @@
 use alloc::vec::Vec;
 
 use crate::consts::{ETH_RTYPE_IP, IP_HEADER_VHL, IP_PROTOCAL_TCP, TCP_EMPTY_DATA};
-use crate::utils::{UnsafeRefIter, check_sum};
+use crate::net::{Eth, Ip, TcpFlags, ETH_LEN, IP_LEN, TCP, TCP_LEN};
+use crate::utils::{check_sum, UnsafeRefIter};
 use crate::IPv4;
 use crate::MacAddress;
-use crate::net::{TCP_LEN, IP_LEN, ETH_LEN, Eth, Ip, TCP, TcpFlags};
 
 #[derive(Debug, Clone, Copy)]
 pub struct TCPPacket<'a> {
@@ -16,36 +16,35 @@ pub struct TCPPacket<'a> {
     pub dest_port: u16,
     pub data_len: usize,
 
-    pub seq: u32,           // sequence number
-    pub ack: u32,           // acknowledgement number
-    pub flags: TcpFlags,    // flags, last 6 are flags(U, A, P, R, S, F)
-    pub win: u16,           // window size
-    pub urg: u16,           // urgent pointer
-    pub data: &'a [u8]      // data buffer
+    pub seq: u32,        // sequence number
+    pub ack: u32,        // acknowledgement number
+    pub flags: TcpFlags, // flags, last 6 are flags(U, A, P, R, S, F)
+    pub win: u16,        // window size
+    pub urg: u16,        // urgent pointer
+    pub data: &'a [u8],  // data buffer
 }
 
-impl<'a> TCPPacket<'a>  {
+impl<'a> TCPPacket<'a> {
     pub fn build_data(&self) -> Vec<u8> {
         let data = vec![0u8; TCP_LEN + IP_LEN + ETH_LEN + self.data_len];
 
         // convert data ptr to the ref needed.
         let mut data_ptr_iter = UnsafeRefIter::new(&data);
-        let eth_header = unsafe{data_ptr_iter.next_mut::<Eth>()}.unwrap();
-        let ip_header = unsafe{data_ptr_iter.next_mut::<Ip>()}.unwrap();
-        let tcp_header = unsafe{data_ptr_iter.next_mut::<TCP>()}.unwrap();
-        let tcp_data = unsafe {data_ptr_iter.get_curr_arr_mut()};
-
+        let eth_header = unsafe { data_ptr_iter.next_mut::<Eth>() }.unwrap();
+        let ip_header = unsafe { data_ptr_iter.next_mut::<Ip>() }.unwrap();
+        let tcp_header = unsafe { data_ptr_iter.next_mut::<TCP>() }.unwrap();
+        let tcp_data = unsafe { data_ptr_iter.get_curr_arr_mut() };
 
         eth_header.rtype = ETH_RTYPE_IP.to_be();
         eth_header.shost = self.source_mac.to_bytes();
         eth_header.dhost = self.dest_mac.to_bytes();
-        
+
         ip_header.pro = IP_PROTOCAL_TCP.to_be();
         ip_header.off = 0;
         ip_header.src = self.source_ip.to_u32().to_be();
         ip_header.dst = self.dest_ip.to_u32().to_be();
         ip_header.tos = 0; // type of service, use 0 as default
-        ip_header.id  = 0; // packet identified, use 0 as default
+        ip_header.id = 0; // packet identified, use 0 as default
         ip_header.ttl = 100; // packet ttl, use 32 as default
         ip_header.vhl = IP_HEADER_VHL; // version << 4 | header length >> 2
         ip_header.len = ((self.data_len + TCP_LEN + IP_LEN) as u16).to_be(); // toal len
@@ -61,17 +60,21 @@ impl<'a> TCPPacket<'a>  {
         tcp_header.urg = 0;
         tcp_header.sum = 0;
         tcp_data.copy_from_slice(&self.data);
-        
+
         let mut sum = self.source_ip.to_u32().to_be();
         sum += self.dest_ip.to_u32().to_be();
         sum += (IP_PROTOCAL_TCP as u16).to_be() as u32;
         sum += ((self.data_len + TCP_LEN) as u16).to_be() as u32;
-        tcp_header.sum = check_sum(tcp_header as *mut _ as *mut u8, (TCP_LEN + self.data_len) as _, sum); // tcp checksum. zero means no checksum is provided.
+        tcp_header.sum = check_sum(
+            tcp_header as *mut _ as *mut u8,
+            (TCP_LEN + self.data_len) as _,
+            sum,
+        ); // tcp checksum. zero means no checksum is provided.
 
         data
     }
 
-    pub fn reply(&self, data: &'a[u8]) -> Self {
+    pub fn reply(&self, data: &'a [u8]) -> Self {
         let mut ack_packet = self.ack();
         ack_packet.data_len += data.len();
         ack_packet.data = data;
@@ -87,7 +90,7 @@ impl<'a> TCPPacket<'a>  {
         }
 
         let mut flags = self.flags;
-        
+
         if flags.contains(TcpFlags::R) {
             flags.remove(TcpFlags::R);
         }
@@ -105,7 +108,7 @@ impl<'a> TCPPacket<'a>  {
             flags,
             win: self.win,
             urg: self.urg,
-            data: TCP_EMPTY_DATA
+            data: TCP_EMPTY_DATA,
         }
     }
 
@@ -123,7 +126,7 @@ impl<'a> TCPPacket<'a>  {
             flags: TcpFlags::F,
             win: self.win,
             urg: self.urg,
-            data: TCP_EMPTY_DATA
+            data: TCP_EMPTY_DATA,
         }
     }
 }

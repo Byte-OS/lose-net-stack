@@ -1,4 +1,4 @@
-use crate::packets::{udp::UDPPacket, arp::ArpPacket, tcp::TCPPacket};
+use crate::packets::{arp::ArpPacket, tcp::TCPPacket, udp::UDPPacket};
 
 #[derive(Debug)]
 pub enum Packet {
@@ -8,7 +8,7 @@ pub enum Packet {
     ICMP(),
     IGMP(),
     Todo(&'static str),
-    None
+    None,
 }
 
 #[derive(Debug)]

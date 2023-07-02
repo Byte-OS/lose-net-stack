@@ -1,6 +1,6 @@
-use core::fmt::{Display, Debug};
+use core::fmt::{Debug, Display};
 
-use alloc::{string::String, format};
+use alloc::{format, string::String};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct IPv4(u32);
@@ -15,7 +15,13 @@ impl IPv4 {
     }
 
     pub fn to_string(&self) -> String {
-        format!("{}.{}.{}.{}", (self.0 >> 24) & 0xff, (self.0 >> 16) & 0xff, (self.0 >> 8) & 0xff, self.0 & 0xff)
+        format!(
+            "{}.{}.{}.{}",
+            (self.0 >> 24) & 0xff,
+            (self.0 >> 16) & 0xff,
+            (self.0 >> 8) & 0xff,
+            self.0 & 0xff
+        )
     }
 
     pub fn to_u32(&self) -> u32 {
@@ -47,7 +53,10 @@ impl MacAddress {
     }
 
     pub fn to_string(&self) -> String {
-        format!("{:x}:{:x}:{:x}:{:x}:{:x}:{:x}", self.0[0], self.0[1], self.0[2], self.0[3], self.0[4], self.0[5])
+        format!(
+            "{:x}:{:x}:{:x}:{:x}:{:x}:{:x}",
+            self.0[0], self.0[1], self.0[2], self.0[3], self.0[4], self.0[5]
+        )
     }
 }
 
@@ -59,6 +68,8 @@ impl Display for MacAddress {
 
 impl Debug for MacAddress {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_tuple("MacAddress").field(&self.to_string()).finish()
+        f.debug_tuple("MacAddress")
+            .field(&self.to_string())
+            .finish()
     }
 }

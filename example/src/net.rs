@@ -165,7 +165,7 @@ Connecion: keep-alive\r\n\
     );
 
     // is it a get request?
-    if tcp_packet.data_len > 10 && tcp_packet.data[..4] == [0x47,0x45,0x54, 0x20] {
+    if tcp_packet.data_len > 10 && tcp_packet.data[..4] == [0x47, 0x45, 0x54, 0x20] {
         let mut index = 0;
         for i in 4..tcp_packet.data_len {
             if tcp_packet.data[i] == 0x20 {
@@ -178,7 +178,8 @@ Connecion: keep-alive\r\n\
         info!("request for {}", url);
         if url == "/close" {
             let reply_packet = tcp_packet.ack();
-            net.send(&reply_packet.build_data()).expect("can't send reply packet");
+            net.send(&reply_packet.build_data())
+                .expect("can't send reply packet");
             sbi::legacy::shutdown();
         }
         let reply_packet = tcp_packet.reply(header.as_bytes());
@@ -186,15 +187,19 @@ Connecion: keep-alive\r\n\
         let mut close_packet = tcp_packet.ack();
         close_packet.seq += reply_packet.data.len() as u32;
         close_packet.flags = TcpFlags::F;
-        net.send(&close_packet.build_data()).expect("can't send close packet");
-        
+        net.send(&close_packet.build_data())
+            .expect("can't send close packet");
     } else {
         if tcp_packet.data == b"this is a ping!" {
             let mut reply_packet = tcp_packet.ack();
             reply_packet.flags = TcpFlags::F | TcpFlags::A;
-            net.send(&reply_packet.build_data()).expect("can't send reply packet");
+            net.send(&reply_packet.build_data())
+                .expect("can't send reply packet");
         } else {
-            debug!("tcp_packet flags:{:?}  data_len: {}", tcp_packet.flags, tcp_packet.data_len);
+            debug!(
+                "tcp_packet flags:{:?}  data_len: {}",
+                tcp_packet.flags, tcp_packet.data_len
+            );
             if tcp_packet.flags.contains(TcpFlags::A) && tcp_packet.data_len == 0 {
                 return;
             }
@@ -202,7 +207,8 @@ Connecion: keep-alive\r\n\
             if reply_packet.flags.contains(TcpFlags::F) {
                 reply_packet.flags = TcpFlags::A;
             }
-            net.send(&reply_packet.build_data()).expect("can't send reply packet");
+            net.send(&reply_packet.build_data())
+                .expect("can't send reply packet");
         }
     }
 }
