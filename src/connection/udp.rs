@@ -1,4 +1,4 @@
-use core::net::{SocketAddr, SocketAddrV4};
+use core::net::SocketAddrV4;
 
 use alloc::{
     collections::VecDeque,

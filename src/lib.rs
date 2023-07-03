@@ -6,6 +6,7 @@ pub mod arp_table;
 pub mod connection;
 mod consts;
 mod net;
+pub mod net_trait;
 pub mod packets;
 pub mod results;
 pub(crate) mod utils;

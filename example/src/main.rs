@@ -4,6 +4,7 @@
 #![feature(naked_functions)]
 #![feature(asm_const)]
 #![feature(asm_sym)]
+#![feature(ip_in_core)]
 
 use log::LevelFilter;
 
@@ -21,7 +22,7 @@ mod virtio_impls;
 /// 进行操作系统的初始化，
 #[no_mangle]
 pub extern "C" fn main(_hart_id: usize, _device_tree_addr: usize) {
-    log::set_max_level(LevelFilter::Info);
+    log::set_max_level(LevelFilter::Debug);
 
     net::init();
 }
