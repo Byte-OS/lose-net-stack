@@ -1,4 +1,4 @@
-use core::mem::size_of;
+use core::{mem::size_of, net::Ipv4Addr};
 
 #[derive(Debug)]
 #[repr(C)]
@@ -34,8 +34,10 @@ pub struct Ip {
     pub(crate) ttl: u8,  // time to live
     pub(crate) pro: u8,  // protocol， ICMP(1)、IGMP(2)、TCP(6)、UDP(17)
     pub(crate) sum: u16, // checksum,
-    pub(crate) src: u32, // souce ip
-    pub(crate) dst: u32, // destination ip
+    // pub(crate) src: [u8; 4], // souce ip
+    // pub(crate) dst: [u8; 4], // destination ip
+    pub(crate) src: Ipv4Addr, // souce ip
+    pub(crate) dst: Ipv4Addr, // destination ip
 }
 
 #[allow(dead_code)]

@@ -1,8 +1,17 @@
-use core::{net::{SocketAddr, SocketAddrV4, Ipv4Addr}, marker::PhantomData};
+use core::marker::PhantomData;
+use core::net::{SocketAddr, SocketAddrV4, Ipv4Addr};
 
-use alloc::collections::BTreeMap;
+use alloc::{collections::{BTreeMap, VecDeque}, sync::Arc};
+use spin::Mutex;
 
-use crate::{MacAddress, net::{Eth, TCP_LEN, IP_LEN, TCP, Ip, UDP_LEN, UDP, Arp}, utils::UnsafeRefIter, results::Packet, packets::{arp::{ArpType, ArpPacket}, self}, IPv4, consts::{IP_HEADER_VHL, ETH_RTYPE_IP, ETH_RTYPE_ARP, IP_PROTOCAL_UDP, IP_PROTOCAL_TCP, IP_PROTOCAL_ICMP}, net_trait::NetInterface};
+use crate::net_trait::NetInterface;
+use crate::consts::{IP_HEADER_VHL, ETH_RTYPE_IP, ETH_RTYPE_ARP, IP_PROTOCAL_UDP, IP_PROTOCAL_TCP, IP_PROTOCAL_ICMP};
+use crate::IPv4;
+use crate::packets::{arp::{ArpType, ArpPacket}, self};
+use crate::results::{Packet, NetServerError};
+use crate::utils::UnsafeRefIter;
+use crate::net::{Eth, TCP_LEN, IP_LEN, TCP, Ip, UDP_LEN, UDP, Arp};
+use crate::MacAddress;
 
 use self::udp::UdpServer;
 
@@ -13,7 +22,7 @@ pub struct NetServer<T: NetInterface> {
     local_mac: MacAddress,
     local_ip: Ipv4Addr,
     tcp_map: BTreeMap<usize, SocketAddr>,
-    udp_map: BTreeMap<usize, UdpServer>,
+    udp_map: BTreeMap<u16, Arc<UdpServer<T>>>,
     net: PhantomData<T>
 }
 
@@ -32,7 +41,7 @@ impl<T: NetInterface> NetServer<T> {
         self.tcp_map.get(&port).is_some()
     }
     /// return whether the udp port has been used.
-    pub fn udp_is_used(&self, port: usize) -> bool {
+    pub fn udp_is_used(&self, port: u16) -> bool {
         self.udp_map.get(&port).is_some()
     }
     /// return the local mac address.
@@ -55,6 +64,15 @@ impl<T: NetInterface> NetServer<T> {
             _ => {}, // Unsupported type. Do nothing.
         };
     }
+    pub fn listen_udp(&mut self, port: u16) -> Result<Arc<UdpServer<T>>, NetServerError> {
+        let udp_server = Arc::new(UdpServer::<T> {
+            source: SocketAddrV4::new(self.local_ip, port),
+            packets: Mutex::new(VecDeque::new()),
+            net: PhantomData
+        });
+        self.udp_map.insert(port, udp_server.clone());
+        Ok(udp_server)
+    }
 }
 
 impl<T: NetInterface> NetServer<T> {
@@ -63,23 +81,19 @@ impl<T: NetInterface> NetServer<T> {
         mut data_ptr_iter: UnsafeRefIter,
         ip_header: &Ip,
         eth_header: &Eth,
-    ) -> Packet {
+    ) {
         let udp_header = unsafe { data_ptr_iter.next::<UDP>() }.unwrap();
         let data = unsafe { data_ptr_iter.get_curr_arr() };
         let data_len = ip_header.len.to_be() as usize - UDP_LEN - IP_LEN;
 
-        debug!("receive a udp packet: {:?}", data);
+        debug!("receive a udp packet: {:?} from {:?}:{}", data, ip_header.src, udp_header.sport.to_be());
 
-        Packet::UDP(packets::udp::UDPPacket {
-            source_ip: IPv4::from_u32(ip_header.src.to_be()),
-            source_mac: MacAddress::new(eth_header.shost),
-            source_port: udp_header.sport.to_be(),
-            dest_ip: IPv4::from_u32(ip_header.dst.to_be()),
-            dest_mac: MacAddress::new(eth_header.dhost),
-            dest_port: udp_header.dport.to_be(),
-            data_len,
-            data: &data[..data_len],
-        })
+        let local_port = udp_header.dport.to_be();
+        let remote_ip = ip_header.src;
+        let remote_port = udp_header.sport.to_be();
+        if let Some(udp_conn) = self.udp_map.get(&local_port) {
+            udp_conn.add_queue(SocketAddrV4::new(remote_ip, remote_port), data)
+        }
     }
 
     fn analysis_tcp(
@@ -87,27 +101,27 @@ impl<T: NetInterface> NetServer<T> {
         mut data_ptr_iter: UnsafeRefIter,
         ip_header: &Ip,
         eth_header: &Eth,
-    ) -> Packet {
+    ) {
         let tcp_header = unsafe { data_ptr_iter.next::<TCP>() }.unwrap();
         let offset = ((tcp_header.offset >> 4 & 0xf) as usize - 5) * 4;
         let data = &unsafe { data_ptr_iter.get_curr_arr() }[offset..];
         let data_len = ip_header.len.to_be() as usize - TCP_LEN - IP_LEN - offset;
 
-        Packet::TCP(packets::tcp::TCPPacket {
-            source_ip: IPv4::from_u32(ip_header.src.to_be()),
-            source_mac: MacAddress::new(eth_header.shost),
-            source_port: tcp_header.sport.to_be(),
-            dest_ip: IPv4::from_u32(ip_header.dst.to_be()),
-            dest_mac: MacAddress::new(eth_header.dhost),
-            dest_port: tcp_header.dport.to_be(),
-            data_len,
-            seq: tcp_header.seq.to_be(),
-            ack: tcp_header.ack.to_be(),
-            flags: tcp_header.flags,
-            win: tcp_header.win.to_be(),
-            urg: tcp_header.urg.to_be(),
-            data,
-        })
+        // Packet::TCP(packets::tcp::TCPPacket {
+        //     source_ip: IPv4::from_u32(ip_header.src.to_be()),
+        //     source_mac: MacAddress::new(eth_header.shost),
+        //     source_port: tcp_header.sport.to_be(),
+        //     dest_ip: IPv4::from_u32(ip_header.dst.to_be()),
+        //     dest_mac: MacAddress::new(eth_header.dhost),
+        //     dest_port: tcp_header.dport.to_be(),
+        //     data_len,
+        //     seq: tcp_header.seq.to_be(),
+        //     ack: tcp_header.ack.to_be(),
+        //     flags: tcp_header.flags,
+        //     win: tcp_header.win.to_be(),
+        //     urg: tcp_header.urg.to_be(),
+        //     data,
+        // });
     }
 
     fn analysis_icmp(
@@ -115,10 +129,10 @@ impl<T: NetInterface> NetServer<T> {
         data_ptr_iter: UnsafeRefIter,
         _ip_header: &Ip,
         _eth_header: &Eth,
-    ) -> Packet {
+    ) {
         let _data = unsafe { data_ptr_iter.get_curr_arr() };
 
-        Packet::ICMP()
+        Packet::ICMP();
     }
 
     fn analysis_ip(&self, mut data_ptr_iter: UnsafeRefIter, eth_header: &Eth) {
@@ -138,7 +152,7 @@ impl<T: NetInterface> NetServer<T> {
             IP_PROTOCAL_UDP => self.analysis_udp(data_ptr_iter, ip_header, eth_header),
             IP_PROTOCAL_TCP => self.analysis_tcp(data_ptr_iter, ip_header, eth_header),
             IP_PROTOCAL_ICMP => self.analysis_icmp(data_ptr_iter, ip_header, eth_header),
-            _ => Packet::None,
+            _ => {},
         };
     }
 

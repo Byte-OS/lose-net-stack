@@ -15,3 +15,8 @@ pub enum Packet {
 pub enum NetStackErrors {
     NotRequiredReplyArp,
 }
+
+#[derive(Debug)]
+pub enum NetServerError {
+    
+}
