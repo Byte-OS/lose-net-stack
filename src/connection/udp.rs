@@ -1,8 +1,8 @@
-use core::{net::SocketAddrV4, marker::PhantomData};
+use core::{marker::PhantomData, net::SocketAddrV4};
 
 use alloc::{
     collections::VecDeque,
-    sync::{Arc, Weak},
+    sync::Weak,
     vec::Vec,
 };
 use spin::Mutex;
@@ -11,14 +11,18 @@ use crate::{
     arp_table::get_mac_address,
     consts::{BROADCAST_MAC, ETH_RTYPE_IP, IP_HEADER_VHL, IP_PROTOCAL_UDP},
     net::{Eth, Ip, ETH_LEN, IP_LEN, UDP, UDP_LEN},
-    utils::{check_sum, UnsafeRefIter}, net_trait::NetInterface,
+    net_trait::NetInterface,
+    utils::{check_sum, UnsafeRefIter}, MacAddress,
 };
+
+use super::NetServer;
 
 /// Udp server.
 pub struct UdpServer<T: NetInterface> {
     pub source: SocketAddrV4,
     pub packets: Mutex<VecDeque<UdpConnPacket>>,
-    pub net: PhantomData<T>
+    pub server: Weak<NetServer<T>>,
+    pub net: PhantomData<T>,
 }
 
 pub struct UdpConnPacket {
@@ -34,6 +38,14 @@ impl<T: NetInterface> UdpServer<T> {
     pub fn sendto(&self, addr: SocketAddrV4, buf: &[u8]) {
         log::debug!("send a udp message({} bytes) to {}", buf.len(), addr);
 
+        if addr.ip().is_loopback() {
+            let port = addr.port();
+            if let Some(server) = self.server.upgrade() {
+                server.get_udp(&port).map(|x| x.add_queue(self.source, buf));
+            }
+            return;
+        }
+
         let data = vec![0u8; UDP_LEN + IP_LEN + ETH_LEN + buf.len()];
 
         // convert data ptr to the ref needed.
@@ -46,13 +58,11 @@ impl<T: NetInterface> UdpServer<T> {
         eth_header.rtype = ETH_RTYPE_IP.to_be();
         // eth_header.shost = self.source_mac.to_bytes();
         // eth_header.dhost = self.dest_mac.to_bytes();
-        eth_header.shost = [0x52, 0x54, 0x00, 0x12, 0x34, 0x56];
-        eth_header.dhost = BROADCAST_MAC; 
+        eth_header.shost = MacAddress::new([0x52, 0x54, 0x00, 0x12, 0x34, 0x56]);
+        eth_header.dhost = BROADCAST_MAC;
         eth_header.shost = get_mac_address(self.source.ip())
-            .map(|x| x.to_bytes())
             .unwrap_or(BROADCAST_MAC);
         eth_header.dhost = get_mac_address(addr.ip())
-            .map(|x| x.to_bytes())
             .unwrap_or(BROADCAST_MAC);
 
         ip_header.pro = IP_PROTOCAL_UDP.to_be();
@@ -79,7 +89,9 @@ impl<T: NetInterface> UdpServer<T> {
     }
 
     pub fn add_queue(&self, addr: SocketAddrV4, data: &[u8]) {
-        self.packets.lock().push_back(UdpConnPacket { addr, data: data.to_vec() })
+        self.packets.lock().push_back(UdpConnPacket {
+            addr,
+            data: data.to_vec(),
+        })
     }
 }
-

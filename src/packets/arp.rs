@@ -67,13 +67,13 @@ impl ArpPacket {
         let mut data_ptr_iter = UnsafeRefIter::new(&data);
 
         // let mut eth_header = unsafe{(data.as_ptr() as usize as *mut Eth).as_mut()}.unwrap();
-        let mut eth_header = unsafe { data_ptr_iter.next_mut::<Eth>() }.unwrap();
+        let eth_header = unsafe { data_ptr_iter.next_mut::<Eth>() }.unwrap();
         eth_header.rtype = ETH_RTYPE_ARP.to_be();
         eth_header.dhost = BROADCAST_MAC;
-        eth_header.shost = self.sender_mac.to_bytes();
+        eth_header.shost = self.sender_mac;
 
         // let mut arp_header = unsafe{((data.as_ptr() as usize + size_of::<Eth>()) as *mut Arp).as_mut()}.unwrap();
-        let mut arp_header = unsafe { data_ptr_iter.next_mut::<Arp>() }.unwrap();
+        let arp_header = unsafe { data_ptr_iter.next_mut::<Arp>() }.unwrap();
         arp_header.httype = ARP_HRD_ETHER.to_be();
         arp_header.pttype = ETH_RTYPE_IP.to_be();
         arp_header.hlen = ARP_ETHADDR_LEN as u8; // mac address len

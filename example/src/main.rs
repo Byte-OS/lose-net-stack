@@ -3,7 +3,6 @@
 #![no_main]
 #![feature(naked_functions)]
 #![feature(asm_const)]
-#![feature(asm_sym)]
 #![feature(ip_in_core)]
 
 use log::LevelFilter;

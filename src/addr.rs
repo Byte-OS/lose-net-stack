@@ -44,7 +44,7 @@ impl Debug for IPv4 {
 pub struct MacAddress([u8; 6]);
 
 impl MacAddress {
-    pub fn new(addr: [u8; 6]) -> Self {
+    pub const fn new(addr: [u8; 6]) -> Self {
         MacAddress(addr)
     }
 

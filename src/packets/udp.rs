@@ -1,8 +1,3 @@
-use alloc::vec::Vec;
-
-use crate::consts::{ETH_RTYPE_IP, IP_HEADER_VHL, IP_PROTOCAL_UDP};
-use crate::net::{Eth, Ip, ETH_LEN, IP_LEN, UDP, UDP_LEN};
-use crate::utils::{check_sum, UnsafeRefIter};
 use crate::IPv4;
 use crate::MacAddress;
 

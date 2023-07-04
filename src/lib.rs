@@ -21,21 +21,9 @@ extern crate bitflags;
 
 pub use addr::IPv4;
 pub use addr::MacAddress;
-use consts::*;
-use net::Arp;
-use net::Eth;
-use net::Ip;
 pub use net::TcpFlags;
-use net::IP_LEN;
-use net::TCP;
-use net::UDP;
-use net::UDP_LEN;
-use packets::arp::ArpPacket;
-use packets::arp::ArpType;
-use results::Packet;
-use utils::UnsafeRefIter;
 
-use crate::net::TCP_LEN;
+// use results::Packet;
 
 // pub struct LoseStack {
 //     pub ip: IPv4,

@@ -1,8 +1,4 @@
-use alloc::vec::Vec;
-
-use crate::consts::{ETH_RTYPE_IP, IP_HEADER_VHL, IP_PROTOCAL_TCP, TCP_EMPTY_DATA};
-use crate::net::{Eth, Ip, TcpFlags, ETH_LEN, IP_LEN, TCP, TCP_LEN};
-use crate::utils::{check_sum, UnsafeRefIter};
+use crate::net::TcpFlags;
 use crate::IPv4;
 use crate::MacAddress;
 
