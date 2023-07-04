@@ -1,12 +1,13 @@
-use crate::IPv4;
+use core::net::Ipv4Addr;
+
 use crate::MacAddress;
 
 #[derive(Debug, Clone)]
 pub struct UDPPacket<'a> {
-    pub source_ip: IPv4,
+    pub source_ip: Ipv4Addr,
     pub source_mac: MacAddress,
     pub source_port: u16,
-    pub dest_ip: IPv4,
+    pub dest_ip: Ipv4Addr,
     pub dest_mac: MacAddress,
     pub dest_port: u16,
     pub data_len: usize,

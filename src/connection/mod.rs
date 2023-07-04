@@ -9,7 +9,7 @@ use spin::Mutex;
 
 use crate::arp_table::cache_arp_entry;
 use crate::consts::{
-    ETH_RTYPE_ARP, ETH_RTYPE_IP, IP_HEADER_VHL, IP_PROTOCAL_ICMP, IP_PROTOCAL_TCP, IP_PROTOCAL_UDP,
+    IP_HEADER_VHL, IpProtocal,
 };
 use crate::net::{Arp, Eth, Ip, IP_LEN, TCP, TCP_LEN, UDP};
 use crate::net_trait::NetInterface;
@@ -18,7 +18,6 @@ use crate::packets::{
 };
 use crate::results::{NetServerError};
 use crate::utils::UnsafeRefIter;
-use crate::IPv4;
 use crate::MacAddress;
 
 use self::udp::UdpServer;
@@ -66,15 +65,21 @@ impl<T: NetInterface> NetServer<T> {
         let mut data_ptr_iter = UnsafeRefIter::new(data);
         let eth_header = unsafe { data_ptr_iter.next::<Eth>() }.unwrap();
         debug!(
-            "eth header: {:?}  type: {:#x}",
+            "eth header: {:?}  type: {:?}",
             eth_header,
-            eth_header.rtype.to_be()
+            eth_header.rtype
         );
-        match eth_header.rtype.to_be() {
-            ETH_RTYPE_IP => self.analysis_ip(data_ptr_iter, eth_header),
-            ETH_RTYPE_ARP => self.analysis_arp(data_ptr_iter),
-            _ => {} // Unsupported type. Do nothing.
-        };
+        match eth_header.rtype {
+            crate::consts::EthRtype::IP => self.analysis_ip(data_ptr_iter, eth_header),
+            crate::consts::EthRtype::ARP => self.analysis_arp(data_ptr_iter),
+            crate::consts::EthRtype::Unknown => {},
+        }
+        // match eth_header.rtype.to_be() {
+        //     ETH_RTYPE_IP => self.analysis_ip(data_ptr_iter, eth_header),
+        //     ETH_RTYPE_ARP => self.analysis_arp(data_ptr_iter),
+        //     _ => {} // Unsupported type. Do nothing.
+        // };
+
     }
     /// listen on a tcp port
     pub fn listen_udp(self: &Arc<Self>, port: u16) -> Result<Arc<UdpServer<T>>, NetServerError> {
@@ -113,7 +118,7 @@ impl<T: NetInterface> NetServer<T> {
         }
     }
 
-    fn analysis_tcp(&self, mut data_ptr_iter: UnsafeRefIter, ip_header: &Ip, eth_header: &Eth) {
+    fn analysis_tcp(&self, mut data_ptr_iter: UnsafeRefIter, ip_header: &Ip) {
         let tcp_header = unsafe { data_ptr_iter.next::<TCP>() }.unwrap();
         let offset = ((tcp_header.offset >> 4 & 0xf) as usize - 5) * 4;
         let data = &unsafe { data_ptr_iter.get_curr_arr() }[offset..];
@@ -155,11 +160,18 @@ impl<T: NetInterface> NetServer<T> {
         let remote_mac = eth_header.shost;
         cache_arp_entry(remote_ip, remote_mac);
 
+        // match ip_header.pro {
+        //     IP_PROTOCAL_UDP => self.analysis_udp(data_ptr_iter, ip_header),
+        //     IP_PROTOCAL_TCP => self.analysis_tcp(data_ptr_iter, ip_header, eth_header),
+        //     IP_PROTOCAL_ICMP => self.analysis_icmp(data_ptr_iter, ip_header, eth_header),
+        //     _ => {}
+        // };
         match ip_header.pro {
-            IP_PROTOCAL_UDP => self.analysis_udp(data_ptr_iter, ip_header),
-            IP_PROTOCAL_TCP => self.analysis_tcp(data_ptr_iter, ip_header, eth_header),
-            IP_PROTOCAL_ICMP => self.analysis_icmp(data_ptr_iter, ip_header, eth_header),
-            _ => {}
+            IpProtocal::IGMP => {},
+            IpProtocal::ICMP => self.analysis_icmp(data_ptr_iter, ip_header, eth_header),
+            IpProtocal::TCP => self.analysis_tcp(data_ptr_iter, ip_header),
+            IpProtocal::UDP => self.analysis_udp(data_ptr_iter, ip_header),
+            IpProtocal::Unknown => {},
         };
     }
 
@@ -171,16 +183,15 @@ impl<T: NetInterface> NetServer<T> {
         } else {
             let rtype = ArpType::form_u16(arp_header.op.to_be());
             let arp = ArpPacket::new(
-                IPv4::from_u32(arp_header.spa.to_be()),
-                MacAddress::new(arp_header.sha),
-                IPv4::from_u32(arp_header.tpa.to_be()),
-                MacAddress::new(arp_header.tha),
+                arp_header.spa,
+                arp_header.sha,
+                arp_header.tpa,
+                arp_header.tha,
                 rtype,
             );
-            let ipv4 = self.local_ip.octets();
             let send_data = arp
                 .reply_packet(
-                    IPv4::new(ipv4[0], ipv4[1], ipv4[2], ipv4[3]),
+                    self.local_ip,
                     self.local_mac,
                 )
                 .expect("can't build reply")

@@ -1,32 +1,32 @@
 use core::{mem::size_of, net::Ipv4Addr};
 
-use crate::MacAddress;
+use crate::{MacAddress, consts::{EthRtype, IpProtocal}};
 
 #[derive(Debug)]
 #[repr(C)]
 pub struct Eth {
     pub(crate) dhost: MacAddress, // destination host
     pub(crate) shost: MacAddress, // source host
-    pub(crate) rtype: u16,     // packet type, arp or ip
+    pub(crate) rtype: EthRtype,   // packet type, arp or ip
 }
 
 #[repr(packed)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Arp {
     pub(crate) httype: u16,  // Hardware type
-    pub(crate) pttype: u16,  // Protocol type, For IPv4, this has the value 0x0800.
+    pub(crate) pttype: EthRtype,  // Protocol type, For IPv4, this has the value 0x0800.
     pub(crate) hlen: u8,     // Hardware length: Ethernet address length is 6.
     pub(crate) plen: u8,     // Protocol length: IPv4 address length is 4.
     pub(crate) op: u16,      // Operation: 1 for request, 2 for reply.
-    pub(crate) sha: [u8; 6], // Sender hardware address
-    pub(crate) spa: u32,     // Sender protocol address
-    pub(crate) tha: [u8; 6], // Target hardware address
-    pub(crate) tpa: u32,     // Target protocol address
+    pub(crate) sha: MacAddress, // Sender hardware address
+    pub(crate) spa: Ipv4Addr,     // Sender protocol address
+    pub(crate) tha: MacAddress, // Target hardware address
+    pub(crate) tpa: Ipv4Addr,     // Target protocol address
 }
 
 #[allow(dead_code)]
 #[repr(packed)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Ip {
     pub(crate) vhl: u8,  // version << 4 | header length >> 2
     pub(crate) tos: u8,  // type of service
@@ -34,10 +34,8 @@ pub struct Ip {
     pub(crate) id: u16,  // identification, can combine all packets
     pub(crate) off: u16, // fragment offset field, packet from
     pub(crate) ttl: u8,  // time to live
-    pub(crate) pro: u8,  // protocol， ICMP(1)、IGMP(2)、TCP(6)、UDP(17)
+    pub(crate) pro: IpProtocal, // protocol， ICMP(1)、IGMP(2)、TCP(6)、UDP(17)
     pub(crate) sum: u16, // checksum,
-    // pub(crate) src: [u8; 4], // souce ip
-    // pub(crate) dst: [u8; 4], // destination ip
     pub(crate) src: Ipv4Addr, // souce ip
     pub(crate) dst: Ipv4Addr, // destination ip
 }

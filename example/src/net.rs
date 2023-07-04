@@ -1,4 +1,4 @@
-use core::net::{Ipv4Addr, SocketAddrV4};
+use core::net::Ipv4Addr;
 use core::ptr::NonNull;
 
 use alloc::sync::Arc;
@@ -69,10 +69,10 @@ pub fn init() {
     ));
 
     let udp_server = net_server.listen_udp(2000).expect("can't listen udp");
-    udp_server.sendto(
-        SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 2000),
-        b"Hello world!",
-    );
+    // udp_server.sendto(
+    //     SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 2000),
+    //     b"Hello world!",
+    // );
     loop {
         info!("waiting for data");
 

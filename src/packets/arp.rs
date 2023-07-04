@@ -1,13 +1,14 @@
+use core::net::Ipv4Addr;
+
 use alloc::vec::Vec;
 
 use crate::consts::{
-    ARP_ETHADDR_LEN, ARP_HRD_ETHER, ARP_OP_REPLY, ARP_OP_REQUEST, BROADCAST_MAC, ETH_RTYPE_ARP,
-    ETH_RTYPE_IP,
+    ARP_ETHADDR_LEN, ARP_HRD_ETHER, ARP_OP_REPLY, ARP_OP_REQUEST, BROADCAST_MAC,
+    EthRtype,
 };
 use crate::net::{Arp, Eth, ARP_LEN, ETH_LEN};
 use crate::results::NetStackErrors;
 use crate::utils::UnsafeRefIter;
-use crate::IPv4;
 use crate::MacAddress;
 
 #[derive(Debug, Clone, Copy)]
@@ -37,18 +38,18 @@ impl ArpType {
 
 #[derive(Debug)]
 pub struct ArpPacket {
-    pub sender_ip: IPv4,
+    pub sender_ip: Ipv4Addr,
     pub sender_mac: MacAddress,
-    pub target_ip: IPv4,
+    pub target_ip: Ipv4Addr,
     pub target_mac: MacAddress,
     pub rtype: ArpType,
 }
 
 impl ArpPacket {
     pub fn new(
-        sender_ip: IPv4,
+        sender_ip: Ipv4Addr,
         sender_mac: MacAddress,
-        target_ip: IPv4,
+        target_ip: Ipv4Addr,
         target_mac: MacAddress,
         rtype: ArpType,
     ) -> Self {
@@ -68,29 +69,29 @@ impl ArpPacket {
 
         // let mut eth_header = unsafe{(data.as_ptr() as usize as *mut Eth).as_mut()}.unwrap();
         let eth_header = unsafe { data_ptr_iter.next_mut::<Eth>() }.unwrap();
-        eth_header.rtype = ETH_RTYPE_ARP.to_be();
+        eth_header.rtype = EthRtype::ARP.into();
         eth_header.dhost = BROADCAST_MAC;
         eth_header.shost = self.sender_mac;
 
         // let mut arp_header = unsafe{((data.as_ptr() as usize + size_of::<Eth>()) as *mut Arp).as_mut()}.unwrap();
         let arp_header = unsafe { data_ptr_iter.next_mut::<Arp>() }.unwrap();
         arp_header.httype = ARP_HRD_ETHER.to_be();
-        arp_header.pttype = ETH_RTYPE_IP.to_be();
+        arp_header.pttype = EthRtype::IP.into();
         arp_header.hlen = ARP_ETHADDR_LEN as u8; // mac address len
-        arp_header.plen = 4; // ipv4
+        arp_header.plen = 4;                     // ipv4
         arp_header.op = self.rtype.to_u16().to_be();
 
-        arp_header.sha = self.sender_mac.to_bytes();
-        arp_header.spa = self.sender_ip.to_u32().to_be();
+        arp_header.sha = self.sender_mac;
+        arp_header.spa = self.sender_ip;
 
-        arp_header.tha = self.target_mac.to_bytes();
-        arp_header.tpa = self.target_ip.to_u32().to_be();
+        arp_header.tha = self.target_mac;
+        arp_header.tpa = self.target_ip;
         data
     }
 
     pub fn reply_packet(
         &self,
-        local_ip: IPv4,
+        local_ip: Ipv4Addr,
         local_mac: MacAddress,
     ) -> Result<Self, NetStackErrors> {
         match self.rtype {

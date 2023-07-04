@@ -9,7 +9,7 @@ use spin::Mutex;
 
 use crate::{
     arp_table::get_mac_address,
-    consts::{BROADCAST_MAC, ETH_RTYPE_IP, IP_HEADER_VHL, IP_PROTOCAL_UDP},
+    consts::{BROADCAST_MAC, IP_HEADER_VHL, EthRtype, IpProtocal},
     net::{Eth, Ip, ETH_LEN, IP_LEN, UDP, UDP_LEN},
     net_trait::NetInterface,
     utils::{check_sum, UnsafeRefIter}, MacAddress,
@@ -55,7 +55,7 @@ impl<T: NetInterface> UdpServer<T> {
         let udp_header = unsafe { data_ptr_iter.next_mut::<UDP>() }.unwrap();
         let udp_data = unsafe { data_ptr_iter.get_curr_arr_mut() };
 
-        eth_header.rtype = ETH_RTYPE_IP.to_be();
+        eth_header.rtype = EthRtype::IP.into();
         // eth_header.shost = self.source_mac.to_bytes();
         // eth_header.dhost = self.dest_mac.to_bytes();
         eth_header.shost = MacAddress::new([0x52, 0x54, 0x00, 0x12, 0x34, 0x56]);
@@ -65,7 +65,7 @@ impl<T: NetInterface> UdpServer<T> {
         eth_header.dhost = get_mac_address(addr.ip())
             .unwrap_or(BROADCAST_MAC);
 
-        ip_header.pro = IP_PROTOCAL_UDP.to_be();
+        ip_header.pro = IpProtocal::UDP.into();
         ip_header.off = 0;
         // ip_header.src = self.source_ip.to_u32().to_be();
         // ip_header.dst = self.dest_ip.to_u32().to_be();

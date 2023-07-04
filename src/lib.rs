@@ -19,7 +19,6 @@ extern crate log;
 #[macro_use]
 extern crate bitflags;
 
-pub use addr::IPv4;
 pub use addr::MacAddress;
 pub use net::TcpFlags;
 
