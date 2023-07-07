@@ -89,6 +89,16 @@ impl<T: NetInterface> NetServer<T> {
     pub fn get_udp(&self, port: &u16) -> Option<Arc<UdpServer<T>>> {
         self.udp_map.lock().get(port).cloned()
     }
+    /// alloc a free udp port
+    pub fn alloc_udp_port(&self) -> u16 {
+        let udp_map = self.udp_map.lock();
+        for i in 3000..65535 {
+            if !udp_map.contains_key(&i) {
+                return i;
+            }
+        }
+        0
+    }
     /// remove udp server
     pub fn remote_udp(&self, port: &u16) {
         self.udp_map.lock().remove(port);
@@ -107,6 +117,16 @@ impl<T: NetInterface> NetServer<T> {
     /// get tcp server
     pub fn get_tcp(&self, port: &u16) -> Option<Arc<TcpServer<T>>> {
         self.tcp_map.lock().get(port).cloned()
+    }
+    /// alloc a free tcp port
+    pub fn alloc_tcp_port(&self) -> u16 {
+        let tcp_map = self.tcp_map.lock();
+        for i in 3000..65535 {
+            if !tcp_map.contains_key(&i) {
+                return i;
+            }
+        }
+        0
     }
     /// remove tcp server
     pub fn remote_tcp(&self, port: &u16) {
