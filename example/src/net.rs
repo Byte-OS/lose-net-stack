@@ -44,6 +44,7 @@ impl NetDevice {
     }
 }
 
+#[derive(Debug)]
 pub struct NetMod;
 
 impl NetInterface for NetMod {
@@ -51,6 +52,10 @@ impl NetInterface for NetMod {
         debug!("send data {} bytes", data.len());
         hexdump(data);
         NET.lock().as_mut().unwrap().send(data);
+    }
+
+    fn local_mac_address() -> MacAddress {
+        MacAddress::new([0x52, 0x54, 0x00, 0x12, 0x34, 0x56])
     }
 }
 
@@ -69,6 +74,7 @@ pub fn init() {
     ));
 
     let udp_server = net_server.listen_udp(2000).expect("can't listen udp");
+    let tcp_server = net_server.listen_tcp(6202).expect("can't listen to tcp");
     // udp_server.sendto(
     //     SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 2000),
     //     b"Hello world!",
@@ -86,6 +92,10 @@ pub fn init() {
         info!("receive {len} bytes from net");
         hexdump(&buf[..len]);
         net_server.analysis_net_data(&buf[..len]);
+
+        if let Some(tcp_connection) = tcp_server.accept() {
+            debug!("has a TCP connection");
+        }
 
         // info!("packet: {:?}", packet);
     }

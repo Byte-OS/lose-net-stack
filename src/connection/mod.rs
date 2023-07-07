@@ -1,6 +1,7 @@
 use core::marker::PhantomData;
-use core::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use core::net::{Ipv4Addr, SocketAddrV4};
 
+use alloc::vec::Vec;
 use alloc::{
     collections::{BTreeMap, VecDeque},
     sync::Arc,
@@ -18,8 +19,9 @@ use crate::packets::{
 };
 use crate::results::{NetServerError};
 use crate::utils::UnsafeRefIter;
-use crate::MacAddress;
+use crate::{MacAddress, TcpFlags};
 
+use self::tcp::TcpServer;
 use self::udp::UdpServer;
 
 pub mod tcp;
@@ -28,7 +30,7 @@ pub mod udp;
 pub struct NetServer<T: NetInterface> {
     local_mac: MacAddress,
     local_ip: Ipv4Addr,
-    tcp_map: Mutex<BTreeMap<usize, SocketAddr>>,
+    tcp_map: Mutex<BTreeMap<u16, Arc<TcpServer<T>>>>,
     udp_map: Mutex<BTreeMap<u16, Arc<UdpServer<T>>>>,
     net: PhantomData<T>,
 }
@@ -44,7 +46,7 @@ impl<T: NetInterface> NetServer<T> {
         }
     }
     /// return whether the tcp port has been used.
-    pub fn tcp_is_used(&self, port: usize) -> bool {
+    pub fn tcp_is_used(&self, port: u16) -> bool {
         self.tcp_map.lock().get(&port).is_some()
     }
     /// return whether the udp port has been used.
@@ -93,8 +95,23 @@ impl<T: NetInterface> NetServer<T> {
         Ok(udp_server)
     }
     /// get udp server
-    pub fn get_udp(self: &Arc<Self>, port: &u16) -> Option<Arc<UdpServer<T>>> {
+    pub fn get_udp(&self, port: &u16) -> Option<Arc<UdpServer<T>>> {
         self.udp_map.lock().get(port).cloned()
+    }
+
+    /// listen on a tcp port
+    pub fn listen_tcp(self: &Arc<Self>, port: u16) -> Result<Arc<TcpServer<T>>, NetServerError> {
+        let tcp_server = Arc::new(TcpServer::<T> {
+            source: SocketAddrV4::new(self.local_ip, port),
+            clients: Mutex::new(Vec::new()),
+            wait_queue: Mutex::new(VecDeque::new()),
+        });
+        self.tcp_map.lock().insert(port, tcp_server.clone());
+        Ok(tcp_server)
+    }
+    /// get tcp server
+    pub fn get_tcp(&self, port: &u16) -> Option<Arc<TcpServer<T>>> {
+        self.tcp_map.lock().get(port).cloned()
     }
 }
 
@@ -124,6 +141,18 @@ impl<T: NetInterface> NetServer<T> {
         let data = &unsafe { data_ptr_iter.get_curr_arr() }[offset..];
         let data_len = ip_header.len.to_be() as usize - TCP_LEN - IP_LEN - offset;
 
+        debug!("receive a {} bytes data packet from {}, flags: {:?}", data_len, ip_header.src, tcp_header.flags);
+        
+        let connection = self.get_tcp(&tcp_header.dport.to_be());
+        if connection.is_none() {
+            return;
+        }
+        let connection = connection.unwrap();
+
+        if tcp_header.flags.contains(TcpFlags::S) {
+            debug!("receive a tcp connection from {}, tcp_header: {:#x?}", ip_header.src, tcp_header);
+            connection.add_queue(SocketAddrV4::new(ip_header.src, tcp_header.sport.to_be()), tcp_header.seq.to_be(), tcp_header.ack.to_be())
+        }
         // Packet::TCP(packets::tcp::TCPPacket {
         //     source_ip: IPv4::from_u32(ip_header.src.to_be()),
         //     source_mac: MacAddress::new(eth_header.shost),
