@@ -18,7 +18,7 @@ pub enum EthRtype {
     IP = 0x0008,
     ARP = 0x0608,
     #[default]
-    Unknown
+    Unknown,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, FromPrimitive)]
@@ -29,5 +29,5 @@ pub enum IpProtocal {
     TCP = 6,
     UDP = 17,
     #[default]
-    Unknown
+    Unknown,
 }

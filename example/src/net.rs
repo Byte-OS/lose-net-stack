@@ -1,6 +1,7 @@
 use core::net::Ipv4Addr;
 use core::ptr::NonNull;
 
+use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec;
 use lose_net_stack::connection::NetServer;
@@ -73,19 +74,18 @@ pub fn init() {
         Ipv4Addr::new(10, 0, 2, 15),
     ));
 
-    let udp_server = net_server.listen_udp(2000).expect("can't listen udp");
     let tcp_server = net_server.listen_tcp(6202).expect("can't listen to tcp");
     // udp_server.sendto(
     //     SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 2000),
     //     b"Hello world!",
     // );
-    loop {
+    let tcp_conn = loop {
         info!("waiting for data");
 
-        if let Some(udp_packet) = udp_server.receve_from() {
-            udp_server.sendto(udp_packet.addr, b"reply");
-            break;
-        }
+        // if let Some(udp_packet) = udp_server.receve_from() {
+        //     udp_server.sendto(udp_packet.addr, b"reply");
+        //     break;
+        // }
 
         let mut buf = vec![0u8; 1024];
         let len = NET.lock().as_mut().unwrap().recv(&mut buf);
@@ -95,9 +95,38 @@ pub fn init() {
 
         if let Some(tcp_connection) = tcp_server.accept() {
             debug!("has a TCP connection");
+            break tcp_connection;
         }
 
         // info!("packet: {:?}", packet);
+    };
+
+    loop {
+        let mut buf = vec![0u8; 1024];
+        let len = NET.lock().as_mut().unwrap().recv(&mut buf);
+        info!("receive {len} bytes from net");
+        hexdump(&buf[..len]);
+        net_server.analysis_net_data(&buf[..len]);
+
+        if let Some(data) = tcp_conn.datas.lock().pop_front() {
+            debug!("receive data {}", String::from_utf8(data).unwrap());
+            tcp_conn.send(b"Hello world!");
+            break;
+        }
+    }
+
+    tcp_conn.close();
+
+    loop {
+        let mut buf = vec![0u8; 1024];
+        let len = NET.lock().as_mut().unwrap().recv(&mut buf);
+        info!("receive {len} bytes from net");
+        hexdump(&buf[..len]);
+        net_server.analysis_net_data(&buf[..len]);
+
+        if tcp_conn.is_closed() {
+            break;
+        }
     }
 
     info!("net stack example test successed!");

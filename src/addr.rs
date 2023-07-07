@@ -2,7 +2,6 @@ use core::fmt::{Debug, Display};
 
 use alloc::{format, string::String};
 
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct MacAddress([u8; 6]);
 

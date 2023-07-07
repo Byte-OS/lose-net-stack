@@ -3,8 +3,7 @@ use core::net::Ipv4Addr;
 use alloc::vec::Vec;
 
 use crate::consts::{
-    ARP_ETHADDR_LEN, ARP_HRD_ETHER, ARP_OP_REPLY, ARP_OP_REQUEST, BROADCAST_MAC,
-    EthRtype,
+    EthRtype, ARP_ETHADDR_LEN, ARP_HRD_ETHER, ARP_OP_REPLY, ARP_OP_REQUEST, BROADCAST_MAC,
 };
 use crate::net::{Arp, Eth, ARP_LEN, ETH_LEN};
 use crate::results::NetStackErrors;
@@ -78,7 +77,7 @@ impl ArpPacket {
         arp_header.httype = ARP_HRD_ETHER.to_be();
         arp_header.pttype = EthRtype::IP.into();
         arp_header.hlen = ARP_ETHADDR_LEN as u8; // mac address len
-        arp_header.plen = 4;                     // ipv4
+        arp_header.plen = 4; // ipv4
         arp_header.op = self.rtype.to_u16().to_be();
 
         arp_header.sha = self.sender_mac;

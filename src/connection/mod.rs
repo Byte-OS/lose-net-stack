@@ -9,15 +9,11 @@ use alloc::{
 use spin::Mutex;
 
 use crate::arp_table::cache_arp_entry;
-use crate::consts::{
-    IP_HEADER_VHL, IpProtocal,
-};
+use crate::consts::{IpProtocal, IP_HEADER_VHL};
 use crate::net::{Arp, Eth, Ip, IP_LEN, TCP, TCP_LEN, UDP};
 use crate::net_trait::NetInterface;
-use crate::packets::{
-    arp::{ArpPacket, ArpType},
-};
-use crate::results::{NetServerError};
+use crate::packets::arp::{ArpPacket, ArpType};
+use crate::results::NetServerError;
 use crate::utils::UnsafeRefIter;
 use crate::{MacAddress, TcpFlags};
 
@@ -66,22 +62,17 @@ impl<T: NetInterface> NetServer<T> {
         debug!("analusis net data");
         let mut data_ptr_iter = UnsafeRefIter::new(data);
         let eth_header = unsafe { data_ptr_iter.next::<Eth>() }.unwrap();
-        debug!(
-            "eth header: {:?}  type: {:?}",
-            eth_header,
-            eth_header.rtype
-        );
+        debug!("eth header: {:?}  type: {:?}", eth_header, eth_header.rtype);
         match eth_header.rtype {
             crate::consts::EthRtype::IP => self.analysis_ip(data_ptr_iter, eth_header),
             crate::consts::EthRtype::ARP => self.analysis_arp(data_ptr_iter),
-            crate::consts::EthRtype::Unknown => {},
+            crate::consts::EthRtype::Unknown => {}
         }
         // match eth_header.rtype.to_be() {
         //     ETH_RTYPE_IP => self.analysis_ip(data_ptr_iter, eth_header),
         //     ETH_RTYPE_ARP => self.analysis_arp(data_ptr_iter),
         //     _ => {} // Unsupported type. Do nothing.
         // };
-
     }
     /// listen on a tcp port
     pub fn listen_udp(self: &Arc<Self>, port: u16) -> Result<Arc<UdpServer<T>>, NetServerError> {
@@ -141,18 +132,34 @@ impl<T: NetInterface> NetServer<T> {
         let data = &unsafe { data_ptr_iter.get_curr_arr() }[offset..];
         let data_len = ip_header.len.to_be() as usize - TCP_LEN - IP_LEN - offset;
 
-        debug!("receive a {} bytes data packet from {}, flags: {:?}", data_len, ip_header.src, tcp_header.flags);
-        
+        debug!(
+            "receive a {} bytes data packet from {}, flags: {:?}",
+            data_len, ip_header.src, tcp_header.flags
+        );
+
         let connection = self.get_tcp(&tcp_header.dport.to_be());
+        let remote = SocketAddrV4::new(ip_header.src, tcp_header.sport.to_be());
         if connection.is_none() {
             return;
         }
         let connection = connection.unwrap();
 
         if tcp_header.flags.contains(TcpFlags::S) {
-            debug!("receive a tcp connection from {}, tcp_header: {:#x?}", ip_header.src, tcp_header);
-            connection.add_queue(SocketAddrV4::new(ip_header.src, tcp_header.sport.to_be()), tcp_header.seq.to_be(), tcp_header.ack.to_be())
+            connection.add_queue(remote, tcp_header.seq.to_be());
+            return;
         }
+
+        let client = connection.get_client(remote);
+        if client.is_none() {
+            return;
+        }
+
+        client.unwrap().interrupt(
+            data,
+            tcp_header.seq.to_be(),
+            tcp_header.ack.to_be(),
+            tcp_header.flags,
+        );
         // Packet::TCP(packets::tcp::TCPPacket {
         //     source_ip: IPv4::from_u32(ip_header.src.to_be()),
         //     source_mac: MacAddress::new(eth_header.shost),
@@ -196,11 +203,11 @@ impl<T: NetInterface> NetServer<T> {
         //     _ => {}
         // };
         match ip_header.pro {
-            IpProtocal::IGMP => {},
+            IpProtocal::IGMP => {}
             IpProtocal::ICMP => self.analysis_icmp(data_ptr_iter, ip_header, eth_header),
             IpProtocal::TCP => self.analysis_tcp(data_ptr_iter, ip_header),
             IpProtocal::UDP => self.analysis_udp(data_ptr_iter, ip_header),
-            IpProtocal::Unknown => {},
+            IpProtocal::Unknown => {}
         };
     }
 
@@ -219,10 +226,7 @@ impl<T: NetInterface> NetServer<T> {
                 rtype,
             );
             let send_data = arp
-                .reply_packet(
-                    self.local_ip,
-                    self.local_mac,
-                )
+                .reply_packet(self.local_ip, self.local_mac)
                 .expect("can't build reply")
                 .build_data();
             // TODO: Send arp packet data.

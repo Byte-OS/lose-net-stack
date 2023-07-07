@@ -1,18 +1,15 @@
 use core::{marker::PhantomData, net::SocketAddrV4};
 
-use alloc::{
-    collections::VecDeque,
-    sync::Weak,
-    vec::Vec,
-};
+use alloc::{collections::VecDeque, sync::Weak, vec::Vec};
 use spin::Mutex;
 
 use crate::{
     arp_table::get_mac_address,
-    consts::{BROADCAST_MAC, IP_HEADER_VHL, EthRtype, IpProtocal},
+    consts::{EthRtype, IpProtocal, BROADCAST_MAC, IP_HEADER_VHL},
     net::{Eth, Ip, ETH_LEN, IP_LEN, UDP, UDP_LEN},
     net_trait::NetInterface,
-    utils::{check_sum, UnsafeRefIter}, MacAddress,
+    utils::{check_sum, UnsafeRefIter},
+    MacAddress,
 };
 
 use super::NetServer;
@@ -60,10 +57,8 @@ impl<T: NetInterface> UdpServer<T> {
         // eth_header.dhost = self.dest_mac.to_bytes();
         eth_header.shost = MacAddress::new([0x52, 0x54, 0x00, 0x12, 0x34, 0x56]);
         eth_header.dhost = BROADCAST_MAC;
-        eth_header.shost = get_mac_address(self.source.ip())
-            .unwrap_or(BROADCAST_MAC);
-        eth_header.dhost = get_mac_address(addr.ip())
-            .unwrap_or(BROADCAST_MAC);
+        eth_header.shost = get_mac_address(self.source.ip()).unwrap_or(BROADCAST_MAC);
+        eth_header.dhost = get_mac_address(addr.ip()).unwrap_or(BROADCAST_MAC);
 
         ip_header.pro = IpProtocal::UDP.into();
         ip_header.off = 0;
