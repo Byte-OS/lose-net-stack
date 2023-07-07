@@ -89,7 +89,10 @@ impl<T: NetInterface> NetServer<T> {
     pub fn get_udp(&self, port: &u16) -> Option<Arc<UdpServer<T>>> {
         self.udp_map.lock().get(port).cloned()
     }
-
+    /// remove udp server
+    pub fn remote_udp(&self, port: &u16) {
+        self.udp_map.lock().remove(port);
+    }
     /// listen on a tcp port
     pub fn listen_tcp(self: &Arc<Self>, port: u16) -> Result<Arc<TcpServer<T>>, NetServerError> {
         let tcp_server = Arc::new(TcpServer::<T> {
@@ -104,6 +107,10 @@ impl<T: NetInterface> NetServer<T> {
     /// get tcp server
     pub fn get_tcp(&self, port: &u16) -> Option<Arc<TcpServer<T>>> {
         self.tcp_map.lock().get(port).cloned()
+    }
+    /// remove tcp server
+    pub fn remote_tcp(&self, port: &u16) {
+        self.tcp_map.lock().remove(port);
     }
 }
 

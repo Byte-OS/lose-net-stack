@@ -82,6 +82,10 @@ impl<T: NetInterface> TcpServer<T> {
             .find(|x| *x.remote.read() == remote)
             .cloned()
     }
+
+    pub fn remove_client(&self, remote: SocketAddrV4) {
+        self.clients.lock().retain(|x| *x.remote.read() != remote)
+    }
 }
 
 #[derive(Debug)]
