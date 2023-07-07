@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 use core::net::SocketAddrV4;
 
 use alloc::collections::VecDeque;
-use alloc::sync::Arc;
+use alloc::sync::{Arc, Weak};
 use alloc::vec::Vec;
 use spin::{Mutex, RwLock};
 
@@ -13,10 +13,13 @@ use crate::net_trait::NetInterface;
 use crate::utils::{check_sum, UnsafeRefIter};
 use crate::TcpFlags;
 
+use super::NetServer;
+
 pub struct TcpServer<T: NetInterface> {
     pub source: SocketAddrV4,
     pub clients: Mutex<Vec<Arc<TcpConnection<T>>>>,
     pub wait_queue: Mutex<VecDeque<Arc<TcpConnection<T>>>>,
+    pub server: Weak<NetServer<T>>,
 }
 
 impl<T: NetInterface> TcpServer<T> {
@@ -31,8 +34,7 @@ impl<T: NetInterface> TcpServer<T> {
         }
     }
 
-    pub fn add_queue(&self, remote: SocketAddrV4, seq: u32) {
-        debug!("seq: {:?}", seq);
+    pub fn add_queue(&self, remote: SocketAddrV4, seq: u32) -> Option<Arc<TcpConnection<T>>> {
         let conn = Arc::new(TcpConnection {
             local: self.source.clone(),
             remote: RwLock::new(remote),
@@ -43,11 +45,34 @@ impl<T: NetInterface> TcpServer<T> {
                 window: 65535,
                 urg: 0,
             }),
-            status: RwLock::new(TcpStatus::WaitingForConnect),
+            status: RwLock::new(TcpStatus::Unconnected),
             datas: Mutex::new(VecDeque::new()),
-            remote_closed: RwLock::new(false)
+            remote_closed: RwLock::new(false),
+            server: self.server.clone(),
         });
-        self.wait_queue.lock().push_back(conn);
+        self.wait_queue.lock().push_back(conn.clone());
+        Some(conn)
+    }
+
+    pub fn connect(&self, remote: SocketAddrV4) -> Option<Arc<TcpConnection<T>>> {
+        let conn = Arc::new(TcpConnection {
+            local: self.source.clone(),
+            remote: RwLock::new(remote),
+            net: PhantomData,
+            options: Mutex::new(TcpSeq {
+                seq: 0,
+                ack: 0,
+                window: 65535,
+                urg: 0,
+            }),
+            status: RwLock::new(TcpStatus::Unconnected),
+            datas: Mutex::new(VecDeque::new()),
+            remote_closed: RwLock::new(false),
+            server: self.server.clone(),
+        });
+        conn.connect(remote);
+        self.clients.lock().push(conn.clone());
+        Some(conn)
     }
 
     pub fn get_client(&self, remote: SocketAddrV4) -> Option<Arc<TcpConnection<T>>> {
@@ -71,10 +96,7 @@ pub struct TcpSeq {
 pub enum TcpStatus {
     Unconnected,
     WaitingForSynAck,
-    WaitingForConnect,
-    WaitingForAck,
     WaitingForData,
-    WaitingForFin,
     WaitingForFinAck,
     Closed,
 }
@@ -88,6 +110,7 @@ pub struct TcpConnection<T: NetInterface> {
     pub status: RwLock<TcpStatus>,
     pub datas: Mutex<VecDeque<Vec<u8>>>,
     pub remote_closed: RwLock<bool>,
+    pub server: Weak<NetServer<T>>,
 }
 
 impl<T: NetInterface> TcpConnection<T> {
@@ -99,10 +122,21 @@ impl<T: NetInterface> TcpConnection<T> {
         options.seq = 0;
         options.ack = 0;
         drop(options);
-        self.send_data(&[], TcpFlags::S);
+        if remote.ip().is_loopback() {
+            // connect to the local endpoint
+            if let Some(remote_tcp) = self.server.upgrade().unwrap().get_tcp(&remote.port()) {
+                *self.status.write() = TcpStatus::WaitingForData;
+                let remote_client = remote_tcp
+                    .add_queue(SocketAddrV4::new(remote.ip().clone(), self.local.port()), 0)
+                    .unwrap();
+                *remote_client.status.write() = TcpStatus::WaitingForData;
+            }
+        } else {
+            self.send_data(&[], TcpFlags::S);
+        }
     }
 
-    /// this function will be called when just need to send some data to the remote.
+    /// this function will be called when just need to sendc some data to the remote.
     pub fn send(&self, buf: &[u8]) -> usize {
         self.send_data(buf, TcpFlags::A | TcpFlags::P);
         buf.len()
@@ -112,6 +146,19 @@ impl<T: NetInterface> TcpConnection<T> {
     /// TIPS: This is a base function in this implementation.
     pub fn send_data(&self, buf: &[u8], flags: TcpFlags) {
         let remote = self.remote.read();
+        // handle loopback device.
+        if remote.ip().is_loopback() && buf.len() > 0 {
+            if let Some(remote_tcp) = self.server.upgrade().unwrap().get_tcp(&remote.port()) {
+                remote_tcp
+                    .get_client(SocketAddrV4::new(remote.ip().clone(), self.local.port()))
+                    .unwrap()
+                    .datas
+                    .lock()
+                    .push_back(buf.to_vec());
+            }
+            return;
+        }
+
         let mut options = self.options.lock();
 
         let data = vec![0u8; TCP_LEN + IP_LEN + ETH_LEN + buf.len()];
@@ -178,7 +225,9 @@ impl<T: NetInterface> TcpConnection<T> {
         if flags.contains(TcpFlags::F) {
             *self.status.write() = TcpStatus::WaitingForFinAck;
         }
-        if flags.contains(TcpFlags::S) && (status == TcpStatus::Unconnected || status == TcpStatus::Closed)  {
+        if flags.contains(TcpFlags::S)
+            && (status == TcpStatus::Unconnected || status == TcpStatus::Closed)
+        {
             *self.status.write() = TcpStatus::WaitingForFinAck;
         }
     }
@@ -193,19 +242,7 @@ impl<T: NetInterface> TcpConnection<T> {
     pub fn interrupt(&self, data: &[u8], seq: u32, ack: u32, flags: TcpFlags) {
         let status = self.status.read().clone();
 
-        // tcp socket closed.
-        if flags == TcpFlags::A && status == TcpStatus::WaitingForSynAck {
-            *self.status.write() = TcpStatus::WaitingForData;
-        }
-
-        // tcp socket closed.
-        if flags == TcpFlags::A && status == TcpStatus::WaitingForFinAck {
-            *self.status.write() = TcpStatus::Closed;
-            return;
-        }
-
-        // if just a reply packet, do nothing
-        if flags == TcpFlags::A && data.len() == 0 {
+        if self.is_closed() {
             return;
         }
 
@@ -224,6 +261,10 @@ impl<T: NetInterface> TcpConnection<T> {
 
         match status {
             TcpStatus::WaitingForData => {
+                // if just a reply packet, do nothing
+                if flags == TcpFlags::A && data.len() == 0 {
+                    return;
+                }
                 self.datas.lock().push_back(data.to_vec());
                 let mut seq = seq + data.len() as u32;
                 // according to rfc793, the SYN consume one byte in the stream.
@@ -254,6 +295,21 @@ impl<T: NetInterface> TcpConnection<T> {
 
     /// this function is called when need to close the socket.
     pub fn close(&self) {
+        let remote = self.remote.read();
+        // handle loopback device.
+        if remote.ip().is_loopback() {
+            if let Some(remote_tcp) = self.server.upgrade().unwrap().get_tcp(&remote.port()) {
+                let remote_client = remote_tcp
+                    .get_client(SocketAddrV4::new(remote.ip().clone(), self.local.port()))
+                    .unwrap();
+                *remote_client.status.write() = TcpStatus::Closed;
+                *remote_client.remote_closed.write() = true;
+                *self.status.write() = TcpStatus::Closed;
+                *self.remote_closed.write() = true;
+            }
+            return;
+        }
+
         if *self.status.read() == TcpStatus::Closed || *self.remote_closed.read() {
             return;
         }

@@ -1,4 +1,4 @@
-use core::net::Ipv4Addr;
+use core::net::{Ipv4Addr, SocketAddrV4};
 use core::ptr::NonNull;
 
 use alloc::string::String;
@@ -50,8 +50,6 @@ pub struct NetMod;
 
 impl NetInterface for NetMod {
     fn send(data: &[u8]) {
-        debug!("send data {} bytes", data.len());
-        hexdump(data);
         NET.lock().as_mut().unwrap().send(data);
     }
 
@@ -75,59 +73,76 @@ pub fn init() {
     ));
 
     let tcp_server = net_server.listen_tcp(6202).expect("can't listen to tcp");
+    let tcp_server1 = net_server.listen_tcp(6203).expect("can't listen to tcp");
+    let client = tcp_server1
+        .connect(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 6202))
+        .unwrap();
+    let server_client = tcp_server.accept().expect("can't receive a clint");
+    client.send(b"Hello server");
+    assert_eq!(
+        server_client.datas.lock().pop_front().unwrap(),
+        b"Hello server"
+    );
+    server_client.send(b"Hello client");
+    assert_eq!(client.datas.lock().pop_front().unwrap(), b"Hello client");
+
+    client.close();
+
+    assert!(server_client.is_closed() == true);
+    assert!(client.is_closed() == true);
     // udp_server.sendto(
     //     SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 2000),
     //     b"Hello world!",
     // );
-    let tcp_conn = loop {
-        info!("waiting for data");
+    // let tcp_conn = loop {
+    //     info!("waiting for data");
 
-        // if let Some(udp_packet) = udp_server.receve_from() {
-        //     udp_server.sendto(udp_packet.addr, b"reply");
-        //     break;
-        // }
+    //     // if let Some(udp_packet) = udp_server.receve_from() {
+    //     //     udp_server.sendto(udp_packet.addr, b"reply");
+    //     //     break;
+    //     // }
 
-        let mut buf = vec![0u8; 1024];
-        let len = NET.lock().as_mut().unwrap().recv(&mut buf);
-        info!("receive {len} bytes from net");
-        hexdump(&buf[..len]);
-        net_server.analysis_net_data(&buf[..len]);
+    //     let mut buf = vec![0u8; 1024];
+    //     let len = NET.lock().as_mut().unwrap().recv(&mut buf);
+    //     info!("receive {len} bytes from net");
+    //     hexdump(&buf[..len]);
+    //     net_server.analysis_net_data(&buf[..len]);
 
-        if let Some(tcp_connection) = tcp_server.accept() {
-            debug!("has a TCP connection");
-            break tcp_connection;
-        }
+    //     if let Some(tcp_connection) = tcp_server.accept() {
+    //         debug!("has a TCP connection");
+    //         break tcp_connection;
+    //     }
 
-        // info!("packet: {:?}", packet);
-    };
+    //     // info!("packet: {:?}", packet);
+    // };
 
-    loop {
-        let mut buf = vec![0u8; 1024];
-        let len = NET.lock().as_mut().unwrap().recv(&mut buf);
-        info!("receive {len} bytes from net");
-        hexdump(&buf[..len]);
-        net_server.analysis_net_data(&buf[..len]);
+    // loop {
+    //     let mut buf = vec![0u8; 1024];
+    //     let len = NET.lock().as_mut().unwrap().recv(&mut buf);
+    //     info!("receive {len} bytes from net");
+    //     hexdump(&buf[..len]);
+    //     net_server.analysis_net_data(&buf[..len]);
 
-        if let Some(data) = tcp_conn.datas.lock().pop_front() {
-            debug!("receive data {}", String::from_utf8(data).unwrap());
-            tcp_conn.send(b"Hello world!");
-            break;
-        }
-    }
+    //     if let Some(data) = tcp_conn.datas.lock().pop_front() {
+    //         debug!("receive data {}", String::from_utf8(data).unwrap());
+    //         tcp_conn.send(b"Hello world!");
+    //         break;
+    //     }
+    // }
 
-    tcp_conn.close();
+    // tcp_conn.close();
 
-    loop {
-        let mut buf = vec![0u8; 1024];
-        let len = NET.lock().as_mut().unwrap().recv(&mut buf);
-        info!("receive {len} bytes from net");
-        hexdump(&buf[..len]);
-        net_server.analysis_net_data(&buf[..len]);
+    // loop {
+    //     let mut buf = vec![0u8; 1024];
+    //     let len = NET.lock().as_mut().unwrap().recv(&mut buf);
+    //     info!("receive {len} bytes from net");
+    //     hexdump(&buf[..len]);
+    //     net_server.analysis_net_data(&buf[..len]);
 
-        if tcp_conn.is_closed() {
-            break;
-        }
-    }
+    //     if tcp_conn.is_closed() {
+    //         break;
+    //     }
+    // }
 
     info!("net stack example test successed!");
 }

@@ -96,6 +96,7 @@ impl<T: NetInterface> NetServer<T> {
             source: SocketAddrV4::new(self.local_ip, port),
             clients: Mutex::new(Vec::new()),
             wait_queue: Mutex::new(VecDeque::new()),
+            server: Arc::downgrade(self),
         });
         self.tcp_map.lock().insert(port, tcp_server.clone());
         Ok(tcp_server)
