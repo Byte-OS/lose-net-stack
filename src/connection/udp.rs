@@ -66,7 +66,10 @@ impl<T: NetInterface> SocketInterface for UdpServer<T> {
         if addr.is_none() {
             return Err(NetServerError::NoUdpRemoteAddress);
         }
-        let addr = addr.unwrap();
+        let mut addr = addr.unwrap();
+        if addr.ip().is_private() || addr.ip().is_unspecified() {
+            addr.set_ip(*inner.local.ip());
+        }
         inner
             .packets
             .get_mut(&addr)
@@ -85,7 +88,7 @@ impl<T: NetInterface> SocketInterface for UdpServer<T> {
 
         log::debug!("send a udp message({} bytes) to {}", buf.len(), addr);
 
-        if addr.ip().is_loopback() || addr.ip() == inner.local.ip() {
+        if addr.ip().is_loopback() || addr.ip().is_unspecified() || addr.ip() == inner.local.ip() {
             let port = addr.port();
             if let Some(server) = self.server.upgrade() {
                 server.get_udp(&port).map(|x| x.add_queue(inner.local, buf));
