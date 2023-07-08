@@ -71,15 +71,16 @@ impl<T: NetInterface + 'static> SocketInterface for TcpServer<T> {
         }
     }
 
-    fn bind(self: Arc<Self>, local: SocketAddrV4) -> Result<(), NetServerError> {
+    fn bind(self: Arc<Self>, mut local: SocketAddrV4) -> Result<(), NetServerError> {
         let mut old_local = self.local.write();
         let net_server = self
             .server
             .upgrade()
             .ok_or(NetServerError::ServerNotExists)?;
-        if local.port() != 0 {
-            net_server.remote_tcp(&old_local.port());
+        if local.port() == 0 {
+            local.set_port(net_server.alloc_tcp_port());
         }
+        net_server.remote_tcp(&old_local.port());
         net_server.tcp_map.lock().insert(local.port(), self.clone());
         *old_local = local;
         Ok(())

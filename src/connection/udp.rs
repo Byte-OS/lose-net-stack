@@ -139,7 +139,7 @@ impl<T: NetInterface> SocketInterface for UdpServer<T> {
         Ok(SocketType::UDP)
     }
 
-    fn bind(self: Arc<Self>, local: SocketAddrV4) -> Result<(), NetServerError> {
+    fn bind(self: Arc<Self>, mut local: SocketAddrV4) -> Result<(), NetServerError> {
         match self.server.upgrade() {
             Some(net_server) => {
                 let mut inner = self.inner.lock();
@@ -150,6 +150,9 @@ impl<T: NetInterface> SocketInterface for UdpServer<T> {
                 // check whether the udp server was binded. if binded then drop the port.
                 if let Some(_) = net_server.get_udp(&inner.local.port()) {
                     net_server.remote_udp(&inner.local.port());
+                }
+                if local.port() == 0 {
+                    local.set_port(net_server.alloc_udp_port());
                 }
                 net_server.udp_map.lock().insert(local.port(), self.clone());
                 inner.local = local;

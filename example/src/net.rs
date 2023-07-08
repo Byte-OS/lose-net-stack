@@ -65,7 +65,7 @@ pub fn test_udp_local(net_server: &Arc<NetServer<NetMod>>) {
     let client = net_server.blank_udp();
     client
         .clone()
-        .bind(SocketAddrV4::new(net_server.get_local_ip(), 17002))
+        .bind(SocketAddrV4::new(net_server.get_local_ip(), 0))
         .expect("can't bind ip to client");
     client
         .sendto(b"Hello Server!", Some(server.get_local().unwrap()))
@@ -96,7 +96,7 @@ pub fn test_tcp_local(net_server: &Arc<NetServer<NetMod>>) {
     let client = net_server.blank_tcp();
     client
         .clone()
-        .bind(SocketAddrV4::new(net_server.get_local_ip(), 6203))
+        .bind(SocketAddrV4::new(net_server.get_local_ip(), 0))
         .expect("can't bind ip to client");
 
     client
