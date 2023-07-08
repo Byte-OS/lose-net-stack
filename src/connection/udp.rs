@@ -153,13 +153,11 @@ impl<T: NetInterface> SocketInterface for UdpServer<T> {
                 }
                 inner.local = local;
                 Ok(())
-            },
-            None => {
-                Err(NetServerError::ServerNotExists)
-            },
+            }
+            None => Err(NetServerError::ServerNotExists),
         }
     }
-    
+
     fn close(&self) -> Result<(), NetServerError> {
         match self.server.upgrade() {
             Some(net_server) => {
@@ -170,7 +168,7 @@ impl<T: NetInterface> SocketInterface for UdpServer<T> {
                 }
                 Ok(())
             }
-            None => Ok(())
+            None => Ok(()),
         }
     }
 }

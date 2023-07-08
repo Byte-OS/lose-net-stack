@@ -5,5 +5,5 @@ pub enum NetServerError {
     EmptyData,
     NoUdpRemoteAddress,
     ServerNotExists,
-    PortWasUsed
+    PortWasUsed,
 }

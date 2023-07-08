@@ -6,7 +6,7 @@ use alloc::{
     collections::{BTreeMap, VecDeque},
     sync::Arc,
 };
-use spin::Mutex;
+use spin::{Mutex, RwLock};
 
 use crate::arp_table::cache_arp_entry;
 use crate::consts::{IpProtocal, IP_HEADER_VHL};
@@ -101,6 +101,7 @@ impl<T: NetInterface> NetServer<T> {
             clients: Mutex::new(Vec::new()),
             wait_queue: Mutex::new(VecDeque::new()),
             server: Arc::downgrade(self),
+            is_client: RwLock::new(false),
         });
         self.tcp_map.lock().insert(port, tcp_server.clone());
         Ok(tcp_server)

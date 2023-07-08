@@ -1,4 +1,4 @@
-use core::net::{Ipv4Addr, SocketAddrV4};
+use core::net::Ipv4Addr;
 use core::ptr::NonNull;
 
 use alloc::sync::Arc;
@@ -8,13 +8,10 @@ use lose_net_stack::net_trait::{NetInterface, SocketInterface};
 use lose_net_stack::MacAddress;
 use opensbi_rt::{print, println};
 use spin::Mutex;
-// use virtio_drivers::{VirtIONet, VirtIOHeader, MmioTransport};
 use virtio_drivers::device::net::VirtIONet;
 use virtio_drivers::transport::mmio::{MmioTransport, VirtIOHeader};
 
 use crate::virtio_impls::HalImpl;
-
-// pub static NET: Mutex<VirtIONet<HalImpl, MmioTransport>> = Mutex::new();
 
 pub struct NetDevice(VirtIONet<HalImpl, MmioTransport>);
 
@@ -32,6 +29,7 @@ impl NetDevice {
         )
     }
 
+    #[allow(dead_code)]
     pub fn recv(&mut self, buf: &mut [u8]) -> usize {
         self.0.recv(buf).expect("can't receive data")
     }
@@ -87,15 +85,18 @@ pub fn test_udp_local(net_server: &Arc<NetServer<NetMod>>) {
 
 pub fn test_tcp_local(net_server: &Arc<NetServer<NetMod>>) {
     let tcp_server = net_server.listen_tcp(6202).expect("can't listen to tcp");
-    let tcp_server1 = net_server.listen_tcp(6203).expect("can't listen to tcp");
-    let client = tcp_server1
-        .connect(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 6202))
-        .unwrap();
+    let client = net_server.listen_tcp(6203).expect("can't listen to tcp");
+
+    client
+        .connect(tcp_server.get_local().unwrap())
+        .expect("can't connect to tcp server");
     let server_client = tcp_server.accept().expect("can't receive a clint");
-    client.sendto(b"Hello server", None).expect("cant send data to server");
+    client
+        .sendto(b"Hello server", None)
+        .expect("cant send data to server");
     assert_eq!(server_client.recv_from(None).unwrap(), b"Hello server");
     server_client.sendto(b"Hello client", None).unwrap();
-    assert_eq!(client.datas.lock().pop_front().unwrap(), b"Hello client");
+    assert_eq!(client.recv_from(None).unwrap(), b"Hello client");
 
     client.close().unwrap();
 
