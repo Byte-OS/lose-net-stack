@@ -13,7 +13,6 @@ use crate::consts::{IpProtocal, IP_HEADER_VHL};
 use crate::net::{Arp, Eth, Ip, IP_LEN, TCP, TCP_LEN, UDP};
 use crate::net_trait::NetInterface;
 use crate::packets::arp::{ArpPacket, ArpType};
-use crate::results::NetServerError;
 use crate::utils::UnsafeRefIter;
 use crate::{MacAddress, TcpFlags};
 
@@ -68,13 +67,11 @@ impl<T: NetInterface> NetServer<T> {
         }
     }
     /// listen on a tcp port
-    pub fn listen_udp(self: &Arc<Self>, port: u16) -> Result<Arc<UdpServer<T>>, NetServerError> {
-        let udp_server = Arc::new(UdpServer::new(
+    pub fn blank_udp(self: &Arc<Self>) -> Arc<UdpServer<T>> {
+        Arc::new(UdpServer::new(
             Arc::downgrade(self),
-            SocketAddrV4::new(self.local_ip, port),
-        ));
-        self.udp_map.lock().insert(port, udp_server.clone());
-        Ok(udp_server)
+            SocketAddrV4::new(self.local_ip, 0),
+        ))
     }
     /// get udp server
     pub fn get_udp(&self, port: &u16) -> Option<Arc<UdpServer<T>>> {
@@ -94,17 +91,14 @@ impl<T: NetInterface> NetServer<T> {
     pub fn remote_udp(&self, port: &u16) {
         self.udp_map.lock().remove(port);
     }
-    /// listen on a tcp port
-    pub fn listen_tcp(self: &Arc<Self>, port: u16) -> Result<Arc<TcpServer<T>>, NetServerError> {
-        let tcp_server = Arc::new(TcpServer::<T> {
-            source: SocketAddrV4::new(self.local_ip, port),
+    pub fn blank_tcp(self: &Arc<Self>) -> Arc<TcpServer<T>> {
+        Arc::new(TcpServer::<T> {
+            local: RwLock::new(SocketAddrV4::new(self.local_ip, 0)),
             clients: Mutex::new(Vec::new()),
             wait_queue: Mutex::new(VecDeque::new()),
             server: Arc::downgrade(self),
             is_client: RwLock::new(false),
-        });
-        self.tcp_map.lock().insert(port, tcp_server.clone());
-        Ok(tcp_server)
+        })
     }
     /// get tcp server
     pub fn get_tcp(&self, port: &u16) -> Option<Arc<TcpServer<T>>> {

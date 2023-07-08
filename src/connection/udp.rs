@@ -2,7 +2,7 @@ use core::{marker::PhantomData, net::SocketAddrV4};
 
 use alloc::{
     collections::{BTreeMap, VecDeque},
-    sync::Weak,
+    sync::{Arc, Weak},
     vec::Vec,
 };
 use spin::Mutex;
@@ -139,7 +139,7 @@ impl<T: NetInterface> SocketInterface for UdpServer<T> {
         Ok(SocketType::UDP)
     }
 
-    fn bind(&self, local: SocketAddrV4) -> Result<(), NetServerError> {
+    fn bind(self: Arc<Self>, local: SocketAddrV4) -> Result<(), NetServerError> {
         match self.server.upgrade() {
             Some(net_server) => {
                 let mut inner = self.inner.lock();
@@ -151,6 +151,7 @@ impl<T: NetInterface> SocketInterface for UdpServer<T> {
                 if let Some(_) = net_server.get_udp(&inner.local.port()) {
                     net_server.remote_udp(&inner.local.port());
                 }
+                net_server.udp_map.lock().insert(local.port(), self.clone());
                 inner.local = local;
                 Ok(())
             }

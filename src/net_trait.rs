@@ -16,7 +16,7 @@ pub trait SocketInterface {
     fn recv_from(&self, _remote: Option<SocketAddrV4>) -> Result<Vec<u8>, NetServerError> {
         Err(NetServerError::Unsupported)
     }
-    fn bind(&self, _local: SocketAddrV4) -> Result<(), NetServerError> {
+    fn bind(self: Arc<Self>, _local: SocketAddrV4) -> Result<(), NetServerError> {
         Err(NetServerError::Unsupported)
     }
     fn listen(&self) -> Result<(), NetServerError> {

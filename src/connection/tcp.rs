@@ -17,7 +17,7 @@ use crate::TcpFlags;
 use super::{NetServer, SocketType};
 
 pub struct TcpServer<T: NetInterface> {
-    pub source: SocketAddrV4,
+    pub local: RwLock<SocketAddrV4>,
     pub clients: Mutex<Vec<Arc<TcpConnection<T>>>>,
     pub wait_queue: Mutex<VecDeque<Arc<TcpConnection<T>>>>,
     pub server: Weak<NetServer<T>>,
@@ -27,7 +27,7 @@ pub struct TcpServer<T: NetInterface> {
 impl<T: NetInterface> TcpServer<T> {
     pub fn add_queue(&self, remote: SocketAddrV4, seq: u32) -> Option<Arc<TcpConnection<T>>> {
         let conn = Arc::new(TcpConnection {
-            local: self.source.clone(),
+            local: self.local.read().clone(),
             remote: RwLock::new(remote),
             net: PhantomData,
             options: Mutex::new(TcpSeq {
@@ -71,15 +71,29 @@ impl<T: NetInterface + 'static> SocketInterface for TcpServer<T> {
         }
     }
 
+    fn bind(self: Arc<Self>, local: SocketAddrV4) -> Result<(), NetServerError> {
+        let mut old_local = self.local.write();
+        let net_server = self
+            .server
+            .upgrade()
+            .ok_or(NetServerError::ServerNotExists)?;
+        if local.port() != 0 {
+            net_server.remote_tcp(&old_local.port());
+        }
+        net_server.tcp_map.lock().insert(local.port(), self.clone());
+        *old_local = local;
+        Ok(())
+    }
+
     fn connect(&self, remote: SocketAddrV4) -> Result<(), NetServerError> {
         *self.is_client.write() = true;
         let remote = if remote.ip().is_loopback() {
-            SocketAddrV4::new(*self.source.ip(), remote.port())
+            SocketAddrV4::new(*self.local.read().ip(), remote.port())
         } else {
             remote
         };
         let conn = Arc::new(TcpConnection {
-            local: self.source.clone(),
+            local: self.local.read().clone(),
             remote: RwLock::new(remote),
             net: PhantomData,
             options: Mutex::new(TcpSeq {
@@ -99,7 +113,7 @@ impl<T: NetInterface + 'static> SocketInterface for TcpServer<T> {
     }
 
     fn get_local(&self) -> Result<SocketAddrV4, NetServerError> {
-        Ok(self.source)
+        Ok(self.local.read().clone())
     }
 
     fn get_protocol(&self) -> Result<SocketType, NetServerError> {

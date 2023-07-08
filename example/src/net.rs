@@ -1,4 +1,4 @@
-use core::net::Ipv4Addr;
+use core::net::{Ipv4Addr, SocketAddrV4};
 use core::ptr::NonNull;
 
 use alloc::sync::Arc;
@@ -57,12 +57,16 @@ impl NetInterface for NetMod {
 pub static NET: Mutex<Option<NetDevice>> = Mutex::new(None);
 
 pub fn test_udp_local(net_server: &Arc<NetServer<NetMod>>) {
-    let server = net_server
-        .listen_udp(17001)
-        .expect("can't listen to udp port 17001");
-    let client = net_server
-        .listen_udp(17002)
-        .expect("can't listen to udp port 17002");
+    let server = net_server.blank_udp();
+    server
+        .clone()
+        .bind(SocketAddrV4::new(net_server.get_local_ip(), 17001))
+        .expect("can't bind ip to server");
+    let client = net_server.blank_udp();
+    client
+        .clone()
+        .bind(SocketAddrV4::new(net_server.get_local_ip(), 17002))
+        .expect("can't bind ip to client");
     client
         .sendto(b"Hello Server!", Some(server.get_local().unwrap()))
         .expect("can't send to udp server");
@@ -84,8 +88,16 @@ pub fn test_udp_local(net_server: &Arc<NetServer<NetMod>>) {
 }
 
 pub fn test_tcp_local(net_server: &Arc<NetServer<NetMod>>) {
-    let tcp_server = net_server.listen_tcp(6202).expect("can't listen to tcp");
-    let client = net_server.listen_tcp(6203).expect("can't listen to tcp");
+    let tcp_server = net_server.blank_tcp();
+    tcp_server
+        .clone()
+        .bind(SocketAddrV4::new(net_server.get_local_ip(), 6202))
+        .expect("can't bind ip to server");
+    let client = net_server.blank_tcp();
+    client
+        .clone()
+        .bind(SocketAddrV4::new(net_server.get_local_ip(), 6203))
+        .expect("can't bind ip to client");
 
     client
         .connect(tcp_server.get_local().unwrap())
