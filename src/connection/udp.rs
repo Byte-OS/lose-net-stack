@@ -1,7 +1,7 @@
 use core::{marker::PhantomData, net::SocketAddrV4};
 
 use alloc::{
-    collections::{BTreeMap, VecDeque},
+    collections::VecDeque,
     sync::{Arc, Weak},
     vec::Vec,
 };
@@ -22,7 +22,7 @@ use super::{NetServer, SocketType};
 pub struct UdpServerInner {
     pub local: SocketAddrV4,
     pub remote: Option<SocketAddrV4>,
-    pub packets: BTreeMap<SocketAddrV4, VecDeque<Vec<u8>>>,
+    pub packets: VecDeque<(Vec<u8>, SocketAddrV4)>,
 }
 
 /// Udp server.
@@ -38,7 +38,7 @@ impl<T: NetInterface> UdpServer<T> {
             inner: Mutex::new(UdpServerInner {
                 local,
                 remote: None,
-                packets: BTreeMap::new(),
+                packets: VecDeque::new(),
             }),
             server,
             net: PhantomData,
@@ -48,36 +48,20 @@ impl<T: NetInterface> UdpServer<T> {
     pub fn add_queue(&self, addr: SocketAddrV4, data: &[u8]) {
         debug!("receive a udp message ({} bytes) from {}", data.len(), addr);
         let mut inner = self.inner.lock();
-        if !inner.packets.contains_key(&addr) {
-            inner.packets.insert(addr, VecDeque::new());
-        }
         inner
             .packets
-            .get_mut(&addr)
-            .unwrap()
-            .push_back(data.to_vec());
+            .push_back((data.to_vec(), addr))
     }
 }
 
 impl<T: NetInterface> SocketInterface for UdpServer<T> {
-    fn recv_from(&self, remote: Option<SocketAddrV4>) -> Result<Vec<u8>, NetServerError> {
+    fn recv_from(&self) -> Result<(Vec<u8>, SocketAddrV4), NetServerError> {
         let mut inner = self.inner.lock();
-        let addr = remote.or(inner.remote);
-        if addr.is_none() {
-            return Err(NetServerError::NoUdpRemoteAddress);
-        }
-        let mut addr = addr.unwrap();
-        if addr.ip().is_loopback() || addr.ip().is_unspecified() {
-            addr.set_ip(*inner.local.ip());
-        }
-        debug!("try to recv from {:?} local address {:?} buffer len: {}", addr, inner.local, inner.packets.len());
-
+        debug!("try to recv from local address {:?} buffer len: {}", inner.local, inner.packets.len());
         inner
             .packets
-            .get_mut(&addr)
-            .map_or(Err(NetServerError::EmptyData), |x| {
-                x.pop_front().ok_or(NetServerError::EmptyData)
-            })
+            .pop_front()
+            .ok_or(NetServerError::EmptyData)
     }
 
     fn sendto(&self, buf: &[u8], remote: Option<SocketAddrV4>) -> Result<usize, NetServerError> {

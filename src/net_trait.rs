@@ -13,7 +13,7 @@ pub trait SocketInterface {
     fn sendto(&self, _data: &[u8], _remote: Option<SocketAddrV4>) -> Result<usize, NetServerError> {
         Err(NetServerError::Unsupported)
     }
-    fn recv_from(&self, _remote: Option<SocketAddrV4>) -> Result<Vec<u8>, NetServerError> {
+    fn recv_from(&self) -> Result<(Vec<u8>, SocketAddrV4), NetServerError> {
         Err(NetServerError::Unsupported)
     }
     fn bind(self: Arc<Self>, _local: SocketAddrV4) -> Result<(), NetServerError> {

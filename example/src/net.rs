@@ -72,8 +72,9 @@ pub fn test_udp_local(net_server: &Arc<NetServer<NetMod>>) {
         .expect("can't send to udp server");
     assert_eq!(
         server
-            .recv_from(Some(client.get_local().unwrap()))
-            .expect("cant receive data from client"),
+            .recv_from()
+            .expect("cant receive data from client")
+            .0,
         b"Hello Server!"
     );
     server
@@ -81,8 +82,9 @@ pub fn test_udp_local(net_server: &Arc<NetServer<NetMod>>) {
         .expect("can't send to udp server");
     assert_eq!(
         client
-            .recv_from(Some(server.get_local().unwrap()))
-            .expect("cant receive data from server"),
+            .recv_from()
+            .expect("cant receive data from server")
+            .0,
         b"Hello Client!"
     )
 }
@@ -106,9 +108,9 @@ pub fn test_tcp_local(net_server: &Arc<NetServer<NetMod>>) {
     client
         .sendto(b"Hello server", None)
         .expect("cant send data to server");
-    assert_eq!(server_client.recv_from(None).unwrap(), b"Hello server");
+    assert_eq!(server_client.recv_from().unwrap().0, b"Hello server");
     server_client.sendto(b"Hello client", None).unwrap();
-    assert_eq!(client.recv_from(None).unwrap(), b"Hello client");
+    assert_eq!(client.recv_from().unwrap().0, b"Hello client");
 
     client.close().unwrap();
 

@@ -121,11 +121,11 @@ impl<T: NetInterface + 'static> SocketInterface for TcpServer<T> {
         Ok(SocketType::TCP)
     }
 
-    fn recv_from(&self, remote: Option<SocketAddrV4>) -> Result<Vec<u8>, NetServerError> {
+    fn recv_from(&self) -> Result<(Vec<u8>, SocketAddrV4), NetServerError> {
         let is_client = self.is_client.read().clone();
 
         if is_client {
-            self.clients.lock()[0].recv_from(remote)
+            self.clients.lock()[0].recv_from()
         } else {
             Err(NetServerError::Unsupported)
         }
@@ -386,10 +386,11 @@ impl<T: NetInterface> SocketInterface for TcpConnection<T> {
         Ok(SocketType::TCP)
     }
 
-    fn recv_from(&self, _remote: Option<SocketAddrV4>) -> Result<Vec<u8>, NetServerError> {
+    fn recv_from(&self) -> Result<(Vec<u8>, SocketAddrV4), NetServerError> {
         self.datas
             .lock()
             .pop_front()
+            .map(|x| (x, self.remote.read().clone()))
             .ok_or(NetServerError::EmptyData)
     }
 
