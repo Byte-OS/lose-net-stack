@@ -67,9 +67,11 @@ impl<T: NetInterface> SocketInterface for UdpServer<T> {
             return Err(NetServerError::NoUdpRemoteAddress);
         }
         let mut addr = addr.unwrap();
-        if addr.ip().is_private() || addr.ip().is_unspecified() {
+        if addr.ip().is_loopback() || addr.ip().is_unspecified() {
             addr.set_ip(*inner.local.ip());
         }
+        debug!("try to recv from {:?} local address {:?} buffer len: {}", addr, inner.local, inner.packets.len());
+
         inner
             .packets
             .get_mut(&addr)
