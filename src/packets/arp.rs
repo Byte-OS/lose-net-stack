@@ -6,7 +6,6 @@ use crate::consts::{
     EthRtype, ARP_ETHADDR_LEN, ARP_HRD_ETHER, ARP_OP_REPLY, ARP_OP_REQUEST, BROADCAST_MAC,
 };
 use crate::net::{Arp, Eth, ARP_LEN, ETH_LEN};
-use crate::results::NetStackErrors;
 use crate::utils::UnsafeRefIter;
 use crate::MacAddress;
 
@@ -88,11 +87,7 @@ impl ArpPacket {
         data
     }
 
-    pub fn reply_packet(
-        &self,
-        local_ip: Ipv4Addr,
-        local_mac: MacAddress,
-    ) -> Result<Self, NetStackErrors> {
+    pub fn reply_packet(&self, local_ip: Ipv4Addr, local_mac: MacAddress) -> Option<Self> {
         match self.rtype {
             ArpType::Request => {
                 let reply_packet = ArpPacket::new(
@@ -103,9 +98,9 @@ impl ArpPacket {
                     ArpType::Reply,
                 );
 
-                Ok(reply_packet)
+                Some(reply_packet)
             }
-            _ => Err(NetStackErrors::NotRequiredReplyArp),
+            _ => None,
         }
     }
 }

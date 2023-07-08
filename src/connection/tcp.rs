@@ -9,11 +9,12 @@ use spin::{Mutex, RwLock};
 use crate::arp_table::get_mac_address;
 use crate::consts::{EthRtype, IpProtocal, BROADCAST_MAC, IP_HEADER_VHL};
 use crate::net::{Eth, Ip, ETH_LEN, IP_LEN, TCP, TCP_LEN};
-use crate::net_trait::NetInterface;
+use crate::net_trait::{NetInterface, SocketInterface};
+use crate::results::NetServerError;
 use crate::utils::{check_sum, UnsafeRefIter};
 use crate::TcpFlags;
 
-use super::NetServer;
+use super::{NetServer, SocketType};
 
 pub struct TcpServer<T: NetInterface> {
     pub source: SocketAddrV4,
@@ -23,17 +24,6 @@ pub struct TcpServer<T: NetInterface> {
 }
 
 impl<T: NetInterface> TcpServer<T> {
-    pub fn accept(&self) -> Option<Arc<TcpConnection<T>>> {
-        if let Some(conn) = self.wait_queue.lock().pop_front() {
-            self.clients.lock().push(conn.clone());
-            conn.syn_ack();
-            debug!("conn: {:?}", conn);
-            Some(conn)
-        } else {
-            None
-        }
-    }
-
     pub fn add_queue(&self, remote: SocketAddrV4, seq: u32) -> Option<Arc<TcpConnection<T>>> {
         let conn = Arc::new(TcpConnection {
             local: self.source.clone(),
@@ -55,6 +45,11 @@ impl<T: NetInterface> TcpServer<T> {
     }
 
     pub fn connect(&self, remote: SocketAddrV4) -> Option<Arc<TcpConnection<T>>> {
+        let remote = if remote.ip().is_loopback() {
+            SocketAddrV4::new(*self.source.ip(), remote.port())
+        } else {
+            remote
+        };
         let conn = Arc::new(TcpConnection {
             local: self.source.clone(),
             remote: RwLock::new(remote),
@@ -70,7 +65,7 @@ impl<T: NetInterface> TcpServer<T> {
             remote_closed: RwLock::new(false),
             server: self.server.clone(),
         });
-        conn.connect(remote);
+        conn.connect(remote).unwrap();
         self.clients.lock().push(conn.clone());
         Some(conn)
     }
@@ -85,6 +80,28 @@ impl<T: NetInterface> TcpServer<T> {
 
     pub fn remove_client(&self, remote: SocketAddrV4) {
         self.clients.lock().retain(|x| *x.remote.read() != remote)
+    }
+}
+
+impl<T: NetInterface + 'static> SocketInterface for TcpServer<T> {
+    fn accept(&self) -> Result<Arc<dyn SocketInterface>, NetServerError> {
+        if let Some(conn) = self.wait_queue.lock().pop_front() {
+            self.clients.lock().push(conn.clone());
+            if !self.get_local().unwrap().ip().is_private() {
+                conn.syn_ack();
+            }
+            Ok(conn)
+        } else {
+            Err(NetServerError::EmptyClient)
+        }
+    }
+
+    fn get_local(&self) -> Result<SocketAddrV4, NetServerError> {
+        Ok(self.source)
+    }
+
+    fn get_protocol(&self) -> Result<SocketType, NetServerError> {
+        Ok(SocketType::TCP)
     }
 }
 
@@ -118,47 +135,20 @@ pub struct TcpConnection<T: NetInterface> {
 }
 
 impl<T: NetInterface> TcpConnection<T> {
-    /// this function will be called when need to connect to the remote endpoint.
-    pub fn connect(&self, remote: SocketAddrV4) {
-        *self.remote.write() = remote;
-        *self.status.write() = TcpStatus::Unconnected;
-        let mut options = self.options.lock();
-        options.seq = 0;
-        options.ack = 0;
-        drop(options);
-        if remote.ip().is_loopback() {
-            // connect to the local endpoint
-            if let Some(remote_tcp) = self.server.upgrade().unwrap().get_tcp(&remote.port()) {
-                *self.status.write() = TcpStatus::WaitingForData;
-                let remote_client = remote_tcp
-                    .add_queue(SocketAddrV4::new(remote.ip().clone(), self.local.port()), 0)
-                    .unwrap();
-                *remote_client.status.write() = TcpStatus::WaitingForData;
-            }
-        } else {
-            self.send_data(&[], TcpFlags::S);
-        }
-    }
-
-    /// this function will be called when just need to sendc some data to the remote.
-    pub fn send(&self, buf: &[u8]) -> usize {
-        self.send_data(buf, TcpFlags::A | TcpFlags::P);
-        buf.len()
-    }
-
     /// this funciton will send data with tcp flags to the remote endpoint.
     /// TIPS: This is a base function in this implementation.
     pub fn send_data(&self, buf: &[u8], flags: TcpFlags) {
         let remote = self.remote.read();
         // handle loopback device.
-        if remote.ip().is_loopback() && buf.len() > 0 {
+        if remote.ip().is_loopback() || remote.ip() == self.get_local().unwrap().ip() {
+            if buf.len() == 0 {
+                return;
+            }
             if let Some(remote_tcp) = self.server.upgrade().unwrap().get_tcp(&remote.port()) {
                 remote_tcp
-                    .get_client(SocketAddrV4::new(remote.ip().clone(), self.local.port()))
+                    .get_client(self.get_local().unwrap())
                     .unwrap()
-                    .datas
-                    .lock()
-                    .push_back(buf.to_vec());
+                    .add_data(buf);
             }
             return;
         }
@@ -177,7 +167,7 @@ impl<T: NetInterface> TcpConnection<T> {
         eth_header.dhost = get_mac_address(&remote.ip()).unwrap_or(BROADCAST_MAC);
         ip_header.pro = IpProtocal::TCP;
         ip_header.off = 0;
-        ip_header.src = self.local.ip().clone();
+        ip_header.src = self.get_local().unwrap().ip().clone();
         ip_header.dst = *remote.ip();
         ip_header.tos = 0; // type of service, use 0 as default
         ip_header.id = 0; // packet identified, use 0 as default
@@ -185,7 +175,7 @@ impl<T: NetInterface> TcpConnection<T> {
         ip_header.vhl = IP_HEADER_VHL; // version << 4 | header length >> 2
         ip_header.len = ((buf.len() + TCP_LEN + IP_LEN) as u16).to_be(); // toal len
         ip_header.sum = check_sum(ip_header as *mut Ip as *mut u8, IP_LEN as _, 0); // checksum
-        tcp_header.sport = self.local.port().to_be();
+        tcp_header.sport = self.get_local().unwrap().port().to_be();
         tcp_header.dport = remote.port().to_be();
         tcp_header.offset = 5 << 4;
         tcp_header.seq = options.seq.to_be();
@@ -242,11 +232,17 @@ impl<T: NetInterface> TcpConnection<T> {
         *self.status.write() = TcpStatus::WaitingForData;
     }
 
+    /// add data to this network
+    pub fn add_data(&self, data: &[u8]) {
+        debug!("receive a tcp message({} bytes) from {:?}", data.len(), self.remote.read());
+        self.datas.lock().push_back(data.to_vec());
+    }
+
     /// this function will be called when the interrupt triggers and gets this socket throuth the net server.
     pub fn interrupt(&self, data: &[u8], seq: u32, ack: u32, flags: TcpFlags) {
         let status = self.status.read().clone();
 
-        if self.is_closed() {
+        if self.is_closed().unwrap() {
             return;
         }
 
@@ -296,32 +292,81 @@ impl<T: NetInterface> TcpConnection<T> {
             }
         }
     }
+}
+
+impl<T: NetInterface> SocketInterface for TcpConnection<T> {
+    /// this function will be called when need to connect to the remote endpoint.
+    fn connect(&self, remote: SocketAddrV4) -> Result<(), NetServerError> {
+        *self.remote.write() = remote;
+        *self.status.write() = TcpStatus::Unconnected;
+        let mut options = self.options.lock();
+        options.seq = 0;
+        options.ack = 0;
+        drop(options);
+        if remote.ip().is_loopback() || remote.ip() == self.get_local().unwrap().ip() {
+            // connect to the local endpoint
+            if let Some(remote_tcp) = self.server.upgrade().unwrap().get_tcp(&remote.port()) {
+                debug!("add client {:?} to {:?}", self.get_local().unwrap(), remote);
+                *self.status.write() = TcpStatus::WaitingForData;
+                let remote_client = remote_tcp
+                    .add_queue(self.get_local().unwrap(), 0)
+                    .unwrap();
+                *remote_client.status.write() = TcpStatus::WaitingForData;
+            }
+        } else {
+            self.send_data(&[], TcpFlags::S);
+        }
+        Ok(())
+    }
+
+    fn get_local(&self) -> Result<SocketAddrV4, NetServerError> {
+        Ok(self.local)
+    }
+
+    fn get_protocol(&self) -> Result<SocketType, NetServerError> {
+        Ok(SocketType::TCP)
+    }
+
+    fn recv_from(&self, _remote: Option<SocketAddrV4>) -> Result<Vec<u8>, NetServerError> {
+        self.datas
+            .lock()
+            .pop_front()
+            .ok_or(NetServerError::EmptyData)
+    }
+
+    /// this function will be called when just need to sendc some data to the remote.
+    fn sendto(&self, data: &[u8], _remote: Option<SocketAddrV4>) -> Result<usize, NetServerError> {
+        debug!("send a tcp message({} bytes) to {:?}", data.len(), self.remote.read());
+        self.send_data(data, TcpFlags::A | TcpFlags::P);
+        Ok(data.len())
+    }
 
     /// this function is called when need to close the socket.
-    pub fn close(&self) {
+    fn close(&self) -> Result<(), NetServerError> {
         let remote = self.remote.read();
         // handle loopback device.
-        if remote.ip().is_loopback() {
+        if remote.ip().is_loopback() || remote.ip() == self.get_local().unwrap().ip() {
             if let Some(remote_tcp) = self.server.upgrade().unwrap().get_tcp(&remote.port()) {
                 let remote_client = remote_tcp
-                    .get_client(SocketAddrV4::new(remote.ip().clone(), self.local.port()))
+                    .get_client(SocketAddrV4::new(remote.ip().clone(), self.get_local().unwrap().port()))
                     .unwrap();
                 *remote_client.status.write() = TcpStatus::Closed;
                 *remote_client.remote_closed.write() = true;
                 *self.status.write() = TcpStatus::Closed;
                 *self.remote_closed.write() = true;
             }
-            return;
+            return Ok(());
         }
 
         if *self.status.read() == TcpStatus::Closed || *self.remote_closed.read() {
-            return;
+            return Ok(());
         }
         self.send_data(&[], TcpFlags::F | TcpFlags::A);
+        Ok(())
     }
 
     /// return the socket status. judge whether the socket is closed.
-    pub fn is_closed(&self) -> bool {
-        *self.status.read() == TcpStatus::Closed && *self.remote_closed.read() == true
+    fn is_closed(&self) -> Result<bool, NetServerError> {
+        Ok(*self.status.read() == TcpStatus::Closed && *self.remote_closed.read() == true)
     }
 }

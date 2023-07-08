@@ -1,11 +1,9 @@
 use core::net::{Ipv4Addr, SocketAddrV4};
 use core::ptr::NonNull;
 
-use alloc::string::String;
 use alloc::sync::Arc;
-use alloc::vec;
 use lose_net_stack::connection::NetServer;
-use lose_net_stack::net_trait::NetInterface;
+use lose_net_stack::net_trait::{NetInterface, SocketInterface};
 
 use lose_net_stack::MacAddress;
 use opensbi_rt::{print, println};
@@ -59,10 +57,51 @@ impl NetInterface for NetMod {
 }
 
 pub static NET: Mutex<Option<NetDevice>> = Mutex::new(None);
-// pub static NET_SERVER: Mutex<NetServer<NetMod>> = Mutex::new(NetServer::new(
-//     MacAddress::new([0x52, 0x54, 0x00, 0x12, 0x34, 0x56]),
-//     Ipv4Addr::new(10, 0, 2, 15),
-// ));
+
+pub fn test_udp_local(net_server: &Arc<NetServer<NetMod>>) {
+    let server = net_server
+        .listen_udp(17001)
+        .expect("can't listen to udp port 17001");
+    let client = net_server
+        .listen_udp(17002)
+        .expect("can't listen to udp port 17002");
+    client
+        .sendto(b"Hello Server!", Some(server.get_local().unwrap()))
+        .expect("can't send to udp server");
+    assert_eq!(
+        server
+            .recv_from(Some(client.get_local().unwrap()))
+            .expect("cant receive data from client"),
+        b"Hello Server!"
+    );
+    server
+        .sendto(b"Hello Client!", Some(client.get_local().unwrap()))
+        .expect("can't send to udp server");
+    assert_eq!(
+        client
+            .recv_from(Some(server.get_local().unwrap()))
+            .expect("cant receive data from server"),
+        b"Hello Client!"
+    )
+}
+
+pub fn test_tcp_local(net_server: &Arc<NetServer<NetMod>>) {
+    let tcp_server = net_server.listen_tcp(6202).expect("can't listen to tcp");
+    let tcp_server1 = net_server.listen_tcp(6203).expect("can't listen to tcp");
+    let client = tcp_server1
+        .connect(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 6202))
+        .unwrap();
+    let server_client = tcp_server.accept().expect("can't receive a clint");
+    client.sendto(b"Hello server", None).expect("cant send data to server");
+    assert_eq!(server_client.recv_from(None).unwrap(), b"Hello server");
+    server_client.sendto(b"Hello client", None).unwrap();
+    assert_eq!(client.datas.lock().pop_front().unwrap(), b"Hello client");
+
+    client.close().unwrap();
+
+    assert!(server_client.is_closed().unwrap() == true);
+    assert!(client.is_closed().unwrap() == true);
+}
 
 pub fn init() {
     // let mut net = NetDevice::new(0x1000_8000);
@@ -72,77 +111,8 @@ pub fn init() {
         Ipv4Addr::new(10, 0, 2, 15),
     ));
 
-    let tcp_server = net_server.listen_tcp(6202).expect("can't listen to tcp");
-    let tcp_server1 = net_server.listen_tcp(6203).expect("can't listen to tcp");
-    let client = tcp_server1
-        .connect(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 6202))
-        .unwrap();
-    let server_client = tcp_server.accept().expect("can't receive a clint");
-    client.send(b"Hello server");
-    assert_eq!(
-        server_client.datas.lock().pop_front().unwrap(),
-        b"Hello server"
-    );
-    server_client.send(b"Hello client");
-    assert_eq!(client.datas.lock().pop_front().unwrap(), b"Hello client");
-
-    client.close();
-
-    assert!(server_client.is_closed() == true);
-    assert!(client.is_closed() == true);
-    // udp_server.sendto(
-    //     SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 2000),
-    //     b"Hello world!",
-    // );
-    // let tcp_conn = loop {
-    //     info!("waiting for data");
-
-    //     // if let Some(udp_packet) = udp_server.receve_from() {
-    //     //     udp_server.sendto(udp_packet.addr, b"reply");
-    //     //     break;
-    //     // }
-
-    //     let mut buf = vec![0u8; 1024];
-    //     let len = NET.lock().as_mut().unwrap().recv(&mut buf);
-    //     info!("receive {len} bytes from net");
-    //     hexdump(&buf[..len]);
-    //     net_server.analysis_net_data(&buf[..len]);
-
-    //     if let Some(tcp_connection) = tcp_server.accept() {
-    //         debug!("has a TCP connection");
-    //         break tcp_connection;
-    //     }
-
-    //     // info!("packet: {:?}", packet);
-    // };
-
-    // loop {
-    //     let mut buf = vec![0u8; 1024];
-    //     let len = NET.lock().as_mut().unwrap().recv(&mut buf);
-    //     info!("receive {len} bytes from net");
-    //     hexdump(&buf[..len]);
-    //     net_server.analysis_net_data(&buf[..len]);
-
-    //     if let Some(data) = tcp_conn.datas.lock().pop_front() {
-    //         debug!("receive data {}", String::from_utf8(data).unwrap());
-    //         tcp_conn.send(b"Hello world!");
-    //         break;
-    //     }
-    // }
-
-    // tcp_conn.close();
-
-    // loop {
-    //     let mut buf = vec![0u8; 1024];
-    //     let len = NET.lock().as_mut().unwrap().recv(&mut buf);
-    //     info!("receive {len} bytes from net");
-    //     hexdump(&buf[..len]);
-    //     net_server.analysis_net_data(&buf[..len]);
-
-    //     if tcp_conn.is_closed() {
-    //         break;
-    //     }
-    // }
+    test_udp_local(&net_server);
+    test_tcp_local(&net_server);
 
     info!("net stack example test successed!");
 }

@@ -59,29 +59,20 @@ impl<T: NetInterface> NetServer<T> {
     }
     /// analysis net code.
     pub fn analysis_net_data(&self, data: &[u8]) {
-        debug!("analusis net data");
         let mut data_ptr_iter = UnsafeRefIter::new(data);
         let eth_header = unsafe { data_ptr_iter.next::<Eth>() }.unwrap();
-        debug!("eth header: {:?}  type: {:?}", eth_header, eth_header.rtype);
         match eth_header.rtype {
             crate::consts::EthRtype::IP => self.analysis_ip(data_ptr_iter, eth_header),
             crate::consts::EthRtype::ARP => self.analysis_arp(data_ptr_iter),
             crate::consts::EthRtype::Unknown => {}
         }
-        // match eth_header.rtype.to_be() {
-        //     ETH_RTYPE_IP => self.analysis_ip(data_ptr_iter, eth_header),
-        //     ETH_RTYPE_ARP => self.analysis_arp(data_ptr_iter),
-        //     _ => {} // Unsupported type. Do nothing.
-        // };
     }
     /// listen on a tcp port
     pub fn listen_udp(self: &Arc<Self>, port: u16) -> Result<Arc<UdpServer<T>>, NetServerError> {
-        let udp_server = Arc::new(UdpServer::<T> {
-            source: SocketAddrV4::new(self.local_ip, port),
-            packets: Mutex::new(VecDeque::new()),
-            server: Arc::downgrade(&self),
-            net: PhantomData,
-        });
+        let udp_server = Arc::new(UdpServer::new(
+            Arc::downgrade(self),
+            SocketAddrV4::new(self.local_ip, port),
+        ));
         self.udp_map.lock().insert(port, udp_server.clone());
         Ok(udp_server)
     }
@@ -188,21 +179,6 @@ impl<T: NetInterface> NetServer<T> {
             tcp_header.ack.to_be(),
             tcp_header.flags,
         );
-        // Packet::TCP(packets::tcp::TCPPacket {
-        //     source_ip: IPv4::from_u32(ip_header.src.to_be()),
-        //     source_mac: MacAddress::new(eth_header.shost),
-        //     source_port: tcp_header.sport.to_be(),
-        //     dest_ip: IPv4::from_u32(ip_header.dst.to_be()),
-        //     dest_mac: MacAddress::new(eth_header.dhost),
-        //     dest_port: tcp_header.dport.to_be(),
-        //     data_len,
-        //     seq: tcp_header.seq.to_be(),
-        //     ack: tcp_header.ack.to_be(),
-        //     flags: tcp_header.flags,
-        //     win: tcp_header.win.to_be(),
-        //     urg: tcp_header.urg.to_be(),
-        //     data,
-        // });
     }
 
     fn analysis_icmp(&self, data_ptr_iter: UnsafeRefIter, _ip_header: &Ip, _eth_header: &Eth) {
@@ -224,12 +200,6 @@ impl<T: NetInterface> NetServer<T> {
         let remote_mac = eth_header.shost;
         cache_arp_entry(remote_ip, remote_mac);
 
-        // match ip_header.pro {
-        //     IP_PROTOCAL_UDP => self.analysis_udp(data_ptr_iter, ip_header),
-        //     IP_PROTOCAL_TCP => self.analysis_tcp(data_ptr_iter, ip_header, eth_header),
-        //     IP_PROTOCAL_ICMP => self.analysis_icmp(data_ptr_iter, ip_header, eth_header),
-        //     _ => {}
-        // };
         match ip_header.pro {
             IpProtocal::IGMP => {}
             IpProtocal::ICMP => self.analysis_icmp(data_ptr_iter, ip_header, eth_header),
@@ -261,4 +231,10 @@ impl<T: NetInterface> NetServer<T> {
             T::send(&send_data);
         }
     }
+}
+
+pub enum SocketType {
+    TCP,
+    UDP,
+    RAW,
 }
