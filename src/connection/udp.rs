@@ -154,7 +154,7 @@ impl<T: NetInterface> SocketInterface for UdpServer<T> {
                 if local.port() == 0 {
                     local.set_port(net_server.alloc_udp_port());
                 }
-                if local.ip().is_private() {
+                if local.ip().is_loopback() || local.ip().is_unspecified() {
                     local.set_ip(net_server.local_ip);
                 }
                 net_server.udp_map.lock().insert(local.port(), self.clone());
