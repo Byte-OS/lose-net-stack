@@ -30,7 +30,7 @@ pub struct NetServer<T: NetInterface> {
     net: PhantomData<T>,
 }
 
-impl<T: NetInterface> NetServer<T> {
+impl<T: NetInterface + 'static> NetServer<T> {
     pub const fn new(local_mac: MacAddress, local_ip: Ipv4Addr) -> Self {
         Self {
             local_mac,
@@ -120,7 +120,7 @@ impl<T: NetInterface> NetServer<T> {
     }
 }
 
-impl<T: NetInterface> NetServer<T> {
+impl<T: NetInterface + 'static> NetServer<T> {
     fn analysis_udp(&self, mut data_ptr_iter: UnsafeRefIter, ip_header: &Ip) {
         let udp_header = unsafe { data_ptr_iter.next::<UDP>() }.unwrap();
         let data = unsafe { data_ptr_iter.get_curr_arr() };

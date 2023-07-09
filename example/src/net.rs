@@ -102,6 +102,7 @@ pub fn test_tcp_local(net_server: &Arc<NetServer<NetMod>>) {
         .expect("can't bind ip to client");
 
     client
+        .clone()
         .connect(tcp_server.get_local().unwrap())
         .expect("can't connect to tcp server");
     let server_client = tcp_server.accept().expect("can't receive a clint");

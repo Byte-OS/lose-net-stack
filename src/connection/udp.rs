@@ -54,7 +54,7 @@ impl<T: NetInterface> UdpServer<T> {
     }
 }
 
-impl<T: NetInterface> SocketInterface for UdpServer<T> {
+impl<T: NetInterface + 'static> SocketInterface for UdpServer<T> {
     fn recv_from(&self) -> Result<(Vec<u8>, SocketAddrV4), NetServerError> {
         let mut inner = self.inner.lock();
         debug!("try to recv from local address {:?} buffer len: {}", inner.local, inner.packets.len());

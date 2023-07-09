@@ -80,19 +80,25 @@ impl<T: NetInterface + 'static> SocketInterface for TcpServer<T> {
         if local.port() == 0 {
             local.set_port(net_server.alloc_tcp_port());
         }
+        if local.ip().is_loopback() || local.ip().is_unspecified() {
+            local.set_ip(*old_local.ip());
+        }
         net_server.remote_tcp(&old_local.port());
         net_server.tcp_map.lock().insert(local.port(), self.clone());
         *old_local = local;
         Ok(())
     }
 
-    fn connect(&self, remote: SocketAddrV4) -> Result<(), NetServerError> {
+    fn connect(self: Arc<Self>, remote: SocketAddrV4) -> Result<(), NetServerError> {
         *self.is_client.write() = true;
-        let remote = if remote.ip().is_loopback() {
+        let remote = if remote.ip().is_loopback() || remote.ip().is_unspecified() {
             SocketAddrV4::new(*self.local.read().ip(), remote.port())
         } else {
             remote
         };
+        if self.get_local().unwrap().port() == 0 {
+            self.clone().bind(self.get_local().unwrap())?;
+        }
         let conn = Arc::new(TcpConnection {
             local: self.local.read().clone(),
             remote: RwLock::new(remote),
@@ -108,7 +114,7 @@ impl<T: NetInterface + 'static> SocketInterface for TcpServer<T> {
             remote_closed: RwLock::new(false),
             server: self.server.clone(),
         });
-        conn.connect(remote).unwrap();
+        conn.clone().connect(remote).unwrap();
         self.clients.lock().push(conn.clone());
         Ok(())
     }
@@ -191,13 +197,13 @@ pub struct TcpConnection<T: NetInterface> {
     pub server: Weak<NetServer<T>>,
 }
 
-impl<T: NetInterface> TcpConnection<T> {
+impl<T: NetInterface + 'static> TcpConnection<T> {
     /// this funciton will send data with tcp flags to the remote endpoint.
     /// TIPS: This is a base function in this implementation.
     pub fn send_data(&self, buf: &[u8], flags: TcpFlags) {
         let remote = self.remote.read();
         // handle loopback device.
-        if remote.ip().is_loopback() || remote.ip() == self.get_local().unwrap().ip() {
+        if remote.ip().is_loopback() || remote.ip().is_unspecified() || remote.ip() == self.get_local().unwrap().ip() {
             if buf.len() == 0 {
                 return;
             }
@@ -355,19 +361,20 @@ impl<T: NetInterface> TcpConnection<T> {
     }
 }
 
-impl<T: NetInterface> SocketInterface for TcpConnection<T> {
+impl<T: NetInterface + 'static> SocketInterface for TcpConnection<T> {
     /// this function will be called when need to connect to the remote endpoint.
-    fn connect(&self, remote: SocketAddrV4) -> Result<(), NetServerError> {
+    fn connect(self: Arc<Self>, remote: SocketAddrV4) -> Result<(), NetServerError> {
         *self.remote.write() = remote;
         *self.status.write() = TcpStatus::Unconnected;
         let mut options = self.options.lock();
         options.seq = 0;
         options.ack = 0;
         drop(options);
-        if remote.ip().is_loopback() || remote.ip() == self.get_local().unwrap().ip() {
+        debug!("the net {:?} try to connect to {:?}", self.get_local().unwrap(), remote);
+        if remote.ip().is_loopback() || remote.ip().is_unspecified() || remote.ip() == self.get_local().unwrap().ip() {
             // connect to the local endpoint
             if let Some(remote_tcp) = self.server.upgrade().unwrap().get_tcp(&remote.port()) {
-                debug!("add client {:?} to {:?}", self.get_local().unwrap(), remote);
+                debug!("add client {:?} to {:?}", self.get_local().unwrap(), remote_tcp.get_local().unwrap());
                 *self.status.write() = TcpStatus::WaitingForData;
                 let remote_client = remote_tcp.add_queue(self.get_local().unwrap(), 0).unwrap();
                 *remote_client.status.write() = TcpStatus::WaitingForData;
@@ -397,8 +404,9 @@ impl<T: NetInterface> SocketInterface for TcpConnection<T> {
     /// this function will be called when just need to sendc some data to the remote.
     fn sendto(&self, data: &[u8], _remote: Option<SocketAddrV4>) -> Result<usize, NetServerError> {
         debug!(
-            "send a tcp message({} bytes) to {:?}",
+            "send a tcp message({} bytes) from {:?} to {:?}",
             data.len(),
+            self.get_local()?,
             self.remote.read()
         );
         self.send_data(data, TcpFlags::A | TcpFlags::P);
@@ -409,7 +417,7 @@ impl<T: NetInterface> SocketInterface for TcpConnection<T> {
     fn close(&self) -> Result<(), NetServerError> {
         let remote = self.remote.read();
         // handle loopback device.
-        if remote.ip().is_loopback() || remote.ip() == self.get_local().unwrap().ip() {
+        if remote.ip().is_loopback() || remote.ip().is_unspecified() || remote.ip() == self.get_local().unwrap().ip() {
             if let Some(remote_tcp) = self.server.upgrade().unwrap().get_tcp(&remote.port()) {
                 let remote_client = remote_tcp
                     .get_client(SocketAddrV4::new(

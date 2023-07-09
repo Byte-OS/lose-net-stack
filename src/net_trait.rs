@@ -22,7 +22,7 @@ pub trait SocketInterface {
     fn listen(&self) -> Result<(), NetServerError> {
         Err(NetServerError::Unsupported)
     }
-    fn connect(&self, _remote: SocketAddrV4) -> Result<(), NetServerError> {
+    fn connect(self: Arc<Self>, _remote: SocketAddrV4) -> Result<(), NetServerError> {
         Err(NetServerError::Unsupported)
     }
     fn accept(&self) -> Result<Arc<dyn SocketInterface>, NetServerError> {
