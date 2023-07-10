@@ -163,7 +163,17 @@ impl<T: NetInterface + 'static> SocketInterface for TcpServer<T> {
         if is_client {
             self.clients.lock()[0].is_closed()
         } else {
-            Err(NetServerError::Unsupported)
+            Ok(false)
+        }
+    }
+
+    fn readable(&self) -> Result<bool, NetServerError> {
+        let is_client = self.is_client.read().clone();
+
+        if is_client {
+            self.clients.lock()[0].readable()
+        } else {
+            Ok(self.wait_queue.lock().len() > 0)
         }
     }
 }
@@ -203,15 +213,24 @@ impl<T: NetInterface + 'static> TcpConnection<T> {
     pub fn send_data(&self, buf: &[u8], flags: TcpFlags) {
         let remote = self.remote.read();
         // handle loopback device.
-        if remote.ip().is_loopback() || remote.ip().is_unspecified() || remote.ip() == self.get_local().unwrap().ip() {
+        if remote.ip().is_loopback()
+            || remote.ip().is_unspecified()
+            || remote.ip() == self.get_local().unwrap().ip()
+        {
             if buf.len() == 0 {
                 return;
             }
             if let Some(remote_tcp) = self.server.upgrade().unwrap().get_tcp(&remote.port()) {
                 remote_tcp
                     .get_client(self.get_local().unwrap())
-                    .unwrap()
-                    .add_data(buf);
+                    .map(|x| x.add_data(buf));
+                // send to local data if the target is not accepted.
+                remote_tcp
+                    .wait_queue
+                    .lock()
+                    .iter_mut()
+                    .find(|x| *x.remote.read() == self.get_local().unwrap())
+                    .map(|x| x.add_data(buf));
             }
             return;
         }
@@ -370,11 +389,22 @@ impl<T: NetInterface + 'static> SocketInterface for TcpConnection<T> {
         options.seq = 0;
         options.ack = 0;
         drop(options);
-        debug!("the net {:?} try to connect to {:?}", self.get_local().unwrap(), remote);
-        if remote.ip().is_loopback() || remote.ip().is_unspecified() || remote.ip() == self.get_local().unwrap().ip() {
+        debug!(
+            "the net {:?} try to connect to {:?}",
+            self.get_local().unwrap(),
+            remote
+        );
+        if remote.ip().is_loopback()
+            || remote.ip().is_unspecified()
+            || remote.ip() == self.get_local().unwrap().ip()
+        {
             // connect to the local endpoint
             if let Some(remote_tcp) = self.server.upgrade().unwrap().get_tcp(&remote.port()) {
-                debug!("add client {:?} to {:?}", self.get_local().unwrap(), remote_tcp.get_local().unwrap());
+                debug!(
+                    "add client {:?} to {:?}",
+                    self.get_local().unwrap(),
+                    remote_tcp.get_local().unwrap()
+                );
                 *self.status.write() = TcpStatus::WaitingForData;
                 let remote_client = remote_tcp.add_queue(self.get_local().unwrap(), 0).unwrap();
                 *remote_client.status.write() = TcpStatus::WaitingForData;
@@ -417,7 +447,10 @@ impl<T: NetInterface + 'static> SocketInterface for TcpConnection<T> {
     fn close(&self) -> Result<(), NetServerError> {
         let remote = self.remote.read();
         // handle loopback device.
-        if remote.ip().is_loopback() || remote.ip().is_unspecified() || remote.ip() == self.get_local().unwrap().ip() {
+        if remote.ip().is_loopback()
+            || remote.ip().is_unspecified()
+            || remote.ip() == self.get_local().unwrap().ip()
+        {
             if let Some(remote_tcp) = self.server.upgrade().unwrap().get_tcp(&remote.port()) {
                 let remote_client = remote_tcp
                     .get_client(SocketAddrV4::new(
@@ -443,5 +476,9 @@ impl<T: NetInterface + 'static> SocketInterface for TcpConnection<T> {
     /// return the socket status. judge whether the socket is closed.
     fn is_closed(&self) -> Result<bool, NetServerError> {
         Ok(*self.status.read() == TcpStatus::Closed && *self.remote_closed.read() == true)
+    }
+
+    fn readable(&self) -> Result<bool, NetServerError> {
+        Ok(self.datas.lock().len() > 0)
     }
 }

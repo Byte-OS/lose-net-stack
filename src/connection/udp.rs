@@ -48,20 +48,19 @@ impl<T: NetInterface> UdpServer<T> {
     pub fn add_queue(&self, addr: SocketAddrV4, data: &[u8]) {
         debug!("receive a udp message ({} bytes) from {}", data.len(), addr);
         let mut inner = self.inner.lock();
-        inner
-            .packets
-            .push_back((data.to_vec(), addr))
+        inner.packets.push_back((data.to_vec(), addr))
     }
 }
 
 impl<T: NetInterface + 'static> SocketInterface for UdpServer<T> {
     fn recv_from(&self) -> Result<(Vec<u8>, SocketAddrV4), NetServerError> {
         let mut inner = self.inner.lock();
-        debug!("try to recv from local address {:?} buffer len: {}", inner.local, inner.packets.len());
-        inner
-            .packets
-            .pop_front()
-            .ok_or(NetServerError::EmptyData)
+        debug!(
+            "try to recv from local address {:?} buffer len: {}",
+            inner.local,
+            inner.packets.len()
+        );
+        inner.packets.pop_front().ok_or(NetServerError::EmptyData)
     }
 
     fn sendto(&self, buf: &[u8], remote: Option<SocketAddrV4>) -> Result<usize, NetServerError> {
@@ -166,5 +165,13 @@ impl<T: NetInterface + 'static> SocketInterface for UdpServer<T> {
             }
             None => Ok(()),
         }
+    }
+
+    fn is_closed(&self) -> Result<bool, NetServerError> {
+        Ok(false)
+    }
+
+    fn readable(&self) -> Result<bool, NetServerError> {
+        Ok(self.inner.lock().packets.len() > 0)
     }
 }

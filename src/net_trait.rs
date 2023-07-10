@@ -28,6 +28,9 @@ pub trait SocketInterface {
     fn accept(&self) -> Result<Arc<dyn SocketInterface>, NetServerError> {
         Err(NetServerError::Unsupported)
     }
+    fn readable(&self) -> Result<bool, NetServerError> {
+        Err(NetServerError::Unsupported)
+    }
     fn get_local(&self) -> Result<SocketAddrV4, NetServerError> {
         Err(NetServerError::Unsupported)
     }
