@@ -19,7 +19,7 @@ pub trait SocketInterface {
     fn bind(self: Arc<Self>, _local: SocketAddrV4) -> Result<(), NetServerError> {
         Err(NetServerError::Unsupported)
     }
-    fn listen(&self) -> Result<(), NetServerError> {
+    fn listen(self: Arc<Self>) -> Result<(), NetServerError> {
         Err(NetServerError::Unsupported)
     }
     fn connect(self: Arc<Self>, _remote: SocketAddrV4) -> Result<(), NetServerError> {

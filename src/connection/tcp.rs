@@ -127,6 +127,13 @@ impl<T: NetInterface + 'static> SocketInterface for TcpServer<T> {
         Ok(SocketType::TCP)
     }
 
+    fn listen(self: Arc<Self>) -> Result<(), NetServerError> {
+        if self.get_local().unwrap().port() == 0 {
+            self.clone().bind(self.get_local().unwrap())?;
+        }
+        Ok(())
+    }
+
     fn recv_from(&self) -> Result<(Vec<u8>, SocketAddrV4), NetServerError> {
         let is_client = self.is_client.read().clone();
 
@@ -460,8 +467,10 @@ impl<T: NetInterface + 'static> SocketInterface for TcpConnection<T> {
                     .unwrap();
                 *remote_client.status.write() = TcpStatus::Closed;
                 *remote_client.remote_closed.write() = true;
+                remote_client.datas.lock().push_back(vec![]);
                 *self.status.write() = TcpStatus::Closed;
                 *self.remote_closed.write() = true;
+                self.datas.lock().push_back(vec![]);
             }
             return Ok(());
         }
