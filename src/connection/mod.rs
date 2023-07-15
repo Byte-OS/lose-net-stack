@@ -80,7 +80,7 @@ impl<T: NetInterface + 'static> NetServer<T> {
     /// alloc a free udp port
     pub fn alloc_udp_port(&self) -> u16 {
         let udp_map = self.udp_map.lock();
-        for i in 3000..65535 {
+        for i in 20000..65535 {
             if !udp_map.contains_key(&i) {
                 return i;
             }
@@ -107,7 +107,7 @@ impl<T: NetInterface + 'static> NetServer<T> {
     /// alloc a free tcp port
     pub fn alloc_tcp_port(&self) -> u16 {
         let tcp_map = self.tcp_map.lock();
-        for i in 3000..65535 {
+        for i in 20000..65535 {
             if !tcp_map.contains_key(&i) {
                 return i;
             }

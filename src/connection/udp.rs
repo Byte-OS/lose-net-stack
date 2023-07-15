@@ -53,6 +53,14 @@ impl<T: NetInterface> UdpServer<T> {
 }
 
 impl<T: NetInterface + 'static> SocketInterface for UdpServer<T> {
+    fn connect(self: Arc<Self>, remote: SocketAddrV4) -> Result<(), NetServerError> {
+        self.inner.lock().remote = Some(remote);
+        if self.get_local()?.port() == 0 {
+            self.clone().bind(self.get_local()?)?;
+        }
+        Ok(())
+    }
+
     fn recv_from(&self) -> Result<(Vec<u8>, SocketAddrV4), NetServerError> {
         let mut inner = self.inner.lock();
         debug!(
@@ -173,5 +181,9 @@ impl<T: NetInterface + 'static> SocketInterface for UdpServer<T> {
 
     fn readable(&self) -> Result<bool, NetServerError> {
         Ok(self.inner.lock().packets.len() > 0)
+    }
+
+    fn get_remote(&self) -> Result<SocketAddrV4, NetServerError> {
+        self.inner.lock().remote.ok_or(NetServerError::Unsupported)
     }
 }

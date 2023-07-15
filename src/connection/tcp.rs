@@ -183,6 +183,16 @@ impl<T: NetInterface + 'static> SocketInterface for TcpServer<T> {
             Ok(self.wait_queue.lock().len() > 0)
         }
     }
+
+    fn get_remote(&self) -> Result<SocketAddrV4, NetServerError> {
+        let is_client = self.is_client.read().clone();
+
+        if is_client {
+            self.clients.lock()[0].get_remote()
+        } else {
+            Err(NetServerError::Unsupported)
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -489,5 +499,9 @@ impl<T: NetInterface + 'static> SocketInterface for TcpConnection<T> {
 
     fn readable(&self) -> Result<bool, NetServerError> {
         Ok(self.datas.lock().len() > 0)
+    }
+
+    fn get_remote(&self) -> Result<SocketAddrV4, NetServerError> {
+        Ok(self.remote.read().clone())
     }
 }
