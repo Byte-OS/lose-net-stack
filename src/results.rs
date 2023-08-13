@@ -6,4 +6,5 @@ pub enum NetServerError {
     NoUdpRemoteAddress,
     ServerNotExists,
     PortWasUsed,
+    Blocking,
 }

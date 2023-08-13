@@ -114,7 +114,7 @@ impl<T: NetInterface + 'static> SocketInterface for TcpServer<T> {
             remote_closed: RwLock::new(false),
             server: self.server.clone(),
         });
-        conn.clone().connect(remote).unwrap();
+        conn.clone().connect(remote)?;
         self.clients.lock().push(conn.clone());
         Ok(())
     }
@@ -425,6 +425,8 @@ impl<T: NetInterface + 'static> SocketInterface for TcpConnection<T> {
                 *self.status.write() = TcpStatus::WaitingForData;
                 let remote_client = remote_tcp.add_queue(self.get_local().unwrap(), 0).unwrap();
                 *remote_client.status.write() = TcpStatus::WaitingForData;
+            } else {
+                return Err(NetServerError::Blocking)
             }
         } else {
             self.send_data(&[], TcpFlags::S);
