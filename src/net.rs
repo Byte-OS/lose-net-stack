@@ -54,7 +54,7 @@ pub struct UDP {
 }
 
 bitflags! {
-    // #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct TcpFlags: u8 {
         const NONE = 0;
         const F = 0b00000001;
